@@ -1,0 +1,42 @@
+# === Fichiers temporaires Office (Word / Excel / PowerPoint) ===
+# Fichiers de verrouillage créés quand un document est ouvert
+~$*.docx
+~$*.doc
+~$*.xlsx
+~$*.xls
+~$*.pptx
+~$*.ppt
+*.tmp
+# Fichiers de récupération automatique
+*.asd
+*.wbk
+
+# === Fichiers système ===
+# macOS
+.DS_Store
+.AppleDouble
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# === Code / développement (au cas où) ===
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+.env
+.env.local
+*.log
+dist/
+build/
+.idea/
+.vscode/
+
+# === Divers ===
+*.bak
+*.swp
