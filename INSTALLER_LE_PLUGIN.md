@@ -22,3 +22,6 @@ le nouveau fichier `.plugin`.
 - Montage / vidéo : hyperframes-read-first, hyperframes-core, hyperframes-animation,
   hyperframes-cli, hyperframes-media, hyperframes-registry, general-video,
   embedded-captions, graphic-overlays, motion-graphics
+- Contenu viral court format : viral-short-form, viral-short-form-ideas, viral-hooks,
+  viral-captions-and-ctas, viral-tiktok-content, viral-instagram-reels,
+  viral-youtube-shorts
