@@ -25,3 +25,4 @@ le nouveau fichier `.plugin`.
 - Contenu viral court format : viral-short-form, viral-short-form-ideas, viral-hooks,
   viral-captions-and-ctas, viral-tiktok-content, viral-instagram-reels,
   viral-youtube-shorts
+- Découverte de skills : find-skills
