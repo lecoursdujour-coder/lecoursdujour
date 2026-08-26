@@ -25,4 +25,5 @@ le nouveau fichier `.plugin`.
 - Contenu viral court format : viral-short-form, viral-short-form-ideas, viral-hooks,
   viral-captions-and-ctas, viral-tiktok-content, viral-instagram-reels,
   viral-youtube-shorts
+- Sous-titres et fin de vidéo LCDJ : sous-titres-lcdj (moteur v08 pastille jaune + outro logo/Abonne-toi — le standard verrouillé, assets inclus)
 - Découverte de skills : find-skills
