@@ -16,6 +16,21 @@ La personne qui modifie les skills régénère le fichier `.plugin`, le remplace
 dépôt et pousse (**Commit** + **Push**). Les autres font **Pull** puis réinstallent
 le nouveau fichier `.plugin`.
 
+## ⚠️ Vérifier quelle version tu as VRAIMENT installée
+Un **Pull** ne met pas à jour le plugin — il ne fait que télécharger le fichier.
+Tant qu'on ne rouvre pas le `.plugin` dans Claude, on continue de tourner sur
+l'ancienne version sans s'en rendre compte.
+
+C'est arrivé le 1er sept. 2026 : machine encore en **0.1.0** alors que le dépôt
+était en **0.7.0** — le skill `sous-titres-lcdj` n'existait tout simplement pas
+côté Claude, et il a fallu le sortir du bundle à la main pour monter la vidéo 3.
+
+Pour vérifier en 10 secondes : demander à Claude « **quels skills lecoursdujour
+as-tu ?** ». Si `sous-titres-lcdj` n'est pas dans la liste, la réinstallation
+n'a pas été faite.
+
+Version actuelle du dépôt : **0.8.0**.
+
 ## Skills incluses
 - Finance : comptabiliser-operations-retraitements, maj-reporting-trimestriel-lr,
   reinitialiser-matrice-trimestre, repliquer-trame-reporting-trimestriel
