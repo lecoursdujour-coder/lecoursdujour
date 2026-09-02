@@ -29,7 +29,7 @@ Pour vérifier en 10 secondes : demander à Claude « **quels skills lecoursdujo
 as-tu ?** ». Si `sous-titres-lcdj` n'est pas dans la liste, la réinstallation
 n'a pas été faite.
 
-Version actuelle du dépôt : **0.8.0**.
+Version actuelle du dépôt : **0.9.0**.
 
 ## Skills incluses
 - Finance : comptabiliser-operations-retraitements, maj-reporting-trimestriel-lr,
