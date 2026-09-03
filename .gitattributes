@@ -1,0 +1,3 @@
+outils/supprimer-blancs/*.ps1 -text
+outils/supprimer-blancs/*.cmd -text
+*.plugin -text

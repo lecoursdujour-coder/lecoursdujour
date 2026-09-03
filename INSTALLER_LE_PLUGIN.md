@@ -29,7 +29,7 @@ Pour vérifier en 10 secondes : demander à Claude « **quels skills lecoursdujo
 as-tu ?** ». Si `sous-titres-lcdj` n'est pas dans la liste, la réinstallation
 n'a pas été faite.
 
-Version actuelle du dépôt : **0.8.0**.
+Version actuelle du dépôt : **0.9.0**.
 
 ## Skills incluses
 - Finance : comptabiliser-operations-retraitements, maj-reporting-trimestriel-lr,
@@ -42,3 +42,16 @@ Version actuelle du dépôt : **0.8.0**.
   viral-youtube-shorts
 - Sous-titres et fin de vidéo LCDJ : sous-titres-lcdj (moteur v08 pastille jaune + outro logo/Abonne-toi — le standard verrouillé, assets inclus)
 - Découverte de skills : find-skills
+
+## L outil « supprimer les blancs » (hors plugin)
+
+Il est dans le dossier **`outils/supprimer-blancs/`** du dépôt, pas dans le `.plugin` :
+c est un script Windows, pas un skill.
+
+1. Copier le dossier `outils/supprimer-blancs` dans **`D:Outils`**.
+2. Double-cliquer sur **`Installer le menu clic droit.cmd`**.
+3. Clic droit sur une vidéo → **Supprimer les blancs**.
+
+⚠️ Le `.ps1` doit rester en **UTF-8 avec BOM** : sans lui, PowerShell 5.1 lit les
+accents en ANSI et refuse le script. GitHub le préserve, une copie manuelle pas
+toujours. Détails et dépannage : `outils/supprimer-blancs/LISEZ-MOI.md`.
