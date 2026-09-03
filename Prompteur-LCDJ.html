@@ -1,0 +1,764 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
+<title>Prompteur LCDJ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap">
+
+<style>
+  :root{
+    --ground:#0E1013; --surface:#171A1F; --raised:#1F242B;
+    --text:#F7F4EC; --dim:#8A8F98; --faint:#5A616B;
+    --accent:#FFD60A; --rule:#262A31;
+    --fs:52px;
+    --read:38vh;
+    --sans:"Nunito","Segoe UI",system-ui,sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+  }
+  :root[data-lux="clair"]{
+    --ground:#F7F4EC; --surface:#EDE9DE; --raised:#E2DDCF;
+    --text:#0E1013; --dim:#5A616B; --faint:#8A8F98; --rule:#D5CFBE;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--ground); color:var(--text);
+    font-family:var(--sans); overflow:hidden;
+  }
+
+  /* ---------- barre de commandes ---------- */
+  #bar{
+    position:fixed; inset:0 0 auto 0; z-index:30;
+    display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px;
+    padding:10px 16px; background:var(--surface);
+    border-bottom:1px solid var(--rule);
+    font-family:var(--mono); font-size:12px; letter-spacing:.02em;
+  }
+  #bar .grp{display:flex; align-items:center; gap:6px}
+  #bar .sep{width:1px; height:22px; background:var(--rule)}
+  label.lab{color:var(--dim); text-transform:uppercase; letter-spacing:.08em; font-size:10px}
+  select,button{
+    font-family:var(--mono); font-size:12px; color:var(--text);
+    background:var(--raised); border:1px solid var(--rule);
+    border-radius:6px; padding:6px 9px; cursor:pointer;
+  }
+  select{max-width:46vw}
+  button:hover{border-color:var(--faint)}
+  button:focus-visible,select:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+  button[aria-pressed="true"]{background:var(--accent); color:#0E1013; border-color:var(--accent); font-weight:600}
+  #play{min-width:104px; font-weight:600}
+  #play.on{background:var(--accent); color:#0E1013; border-color:var(--accent)}
+  .num{font-variant-numeric:tabular-nums; color:var(--dim); min-width:44px; text-align:center}
+  #chrono{font-variant-numeric:tabular-nums; font-size:14px; letter-spacing:.04em}
+  #chrono b{color:var(--accent); font-weight:600}
+  #chrono span{color:var(--dim)}
+
+  /* ---------- zone de lecture ---------- */
+  #scroll{
+    position:absolute; inset:0; overflow-y:auto; overflow-x:hidden;
+    scrollbar-width:none; padding-top:var(--read);
+  }
+  #scroll::-webkit-scrollbar{display:none}
+  #flip{transition:transform .15s}
+  body[data-miroir="1"] #flip{transform:scaleX(-1)}
+
+  #doc{max-width:22ch; margin:0 auto; padding:0 5vw 80vh;
+       font-size:var(--fs); line-height:1.32; font-weight:800;
+       text-wrap:pretty; hyphens:none}
+
+  .bloc{margin:0 0 1.15em; opacity:.28; transition:opacity .18s}
+  .bloc.actif{opacity:1}
+  .bloc p{margin:0 0 .38em}
+  .bloc p:last-child{margin-bottom:0}
+
+  .tc{
+    display:block; font-family:var(--mono); font-weight:600;
+    font-size:.30em; letter-spacing:.1em; color:var(--accent);
+    margin-bottom:.5em; opacity:.75;
+  }
+  .voir{
+    display:block; font-family:var(--mono); font-weight:400;
+    font-size:.26em; line-height:1.5; color:var(--dim);
+    margin-top:.7em; padding-left:.9em; border-left:2px solid var(--rule);
+  }
+  body[data-cues="0"] .voir{display:none}
+
+  /* en-tête de script + hooks */
+  .tete{opacity:1 !important; margin-bottom:1.6em}
+  .tete .kicker{font-family:var(--mono); font-size:.26em; letter-spacing:.16em;
+                text-transform:uppercase; color:var(--dim); display:block; margin-bottom:.7em}
+  .tete h1{font-size:1em; line-height:1.2; margin:0 0 .5em; font-weight:900; text-wrap:balance}
+  .tete .meta{font-family:var(--mono); font-size:.26em; color:var(--dim); line-height:1.6}
+  .hooks{margin:1.1em 0 0; padding:0; list-style:none}
+  .hooks li{font-size:.78em; line-height:1.3; margin:0 0 .6em; padding-left:1.1em;
+            position:relative; font-weight:700}
+  .hooks li::before{content:"◇"; position:absolute; left:0; color:var(--accent); font-size:.7em; top:.25em}
+  .hooks li em{display:block; font-family:var(--mono); font-size:.34em; font-weight:400;
+               font-style:normal; color:var(--dim); margin-top:.35em; letter-spacing:.01em}
+
+  /* ---------- ligne de lecture ---------- */
+  #ligne{position:fixed; left:0; right:0; top:var(--read); z-index:20; pointer-events:none}
+  #ligne .trait{height:2px; background:linear-gradient(90deg,transparent,var(--accent) 12%,var(--accent) 88%,transparent); opacity:.5}
+  #ligne i{position:absolute; top:-6px; width:0; height:0; border-top:7px solid transparent;
+           border-bottom:7px solid transparent}
+  #ligne i.g{left:0; border-left:11px solid var(--accent)}
+  #ligne i.d{right:0; border-right:11px solid var(--accent)}
+
+  /* ---------- progression ---------- */
+  #prog{position:fixed; left:0; bottom:0; height:3px; background:var(--accent); width:0; z-index:30}
+
+  #aide{position:fixed; right:14px; bottom:14px; z-index:30;
+        font-family:var(--mono); font-size:11px; color:var(--faint); text-align:right; line-height:1.7}
+  #aide kbd{font-family:var(--mono); background:var(--raised); border:1px solid var(--rule);
+            border-radius:4px; padding:1px 5px; color:var(--dim)}
+
+  @media (max-width:620px){
+    #bar{font-size:11px; gap:6px 10px; padding:8px 10px}
+    #aide{display:none}
+    #doc{max-width:none}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .bloc,#flip{transition:none}
+  }
+</style>
+
+<div id="bar">
+  <div class="grp">
+    <label class="lab" for="sel">Script</label>
+    <select id="sel"></select>
+  </div>
+  <div class="sep"></div>
+  <div class="grp">
+    <label class="lab">Texte</label>
+    <button id="moins" title="Réduire la police (−)">A−</button>
+    <span class="num" id="tailleVal">52</span>
+    <button id="plus" title="Agrandir la police (+)">A+</button>
+  </div>
+  <div class="sep"></div>
+  <div class="grp">
+    <button id="play" aria-pressed="false">▶ Défiler</button>
+    <label class="lab">Rythme</label>
+    <button id="lent" title="Ralentir (↓)">−</button>
+    <span class="num" id="vitVal">100 %</span>
+    <button id="vite" title="Accélérer (↑)">+</button>
+  </div>
+  <div class="sep"></div>
+  <div class="grp">
+    <span id="chrono"><b>0:00</b><span> / 0:00</span></span>
+  </div>
+  <div class="sep"></div>
+  <div class="grp">
+    <button id="cues" aria-pressed="true" title="Afficher ou masquer la colonne « ce qu'on voit »">Repères</button>
+    <button id="miroir" aria-pressed="false" title="Inverser l'image pour un prompteur à glace (M)">Miroir</button>
+    <button id="lux" title="Fond clair ou sombre">Fond</button>
+    <button id="haut" title="Revenir au début (R)">⟲</button>
+  </div>
+</div>
+
+<div id="scroll"><div id="flip"><div id="doc"></div></div></div>
+<div id="ligne"><i class="g"></i><div class="trait"></div><i class="d"></i></div>
+<div id="prog"></div>
+<div id="aide">
+  <kbd>espace</kbd> défiler · <kbd>↑</kbd><kbd>↓</kbd> rythme<br>
+  <kbd>+</kbd><kbd>−</kbd> taille · <kbd>M</kbd> miroir · <kbd>R</kbd> début
+</div>
+
+<script>
+/* =====================================================================
+   LES SCRIPTS
+   Pour en ajouter un : copier un bloc { … } et le mettre en tête de liste.
+   duree = durée DITE en secondes (sert à caler la vitesse de défilement).
+   ===================================================================== */
+const SCRIPTS = [
+{
+  id:"ven-vf3", jour:"Vendredi 25/09", format:"Vrai ou Faux · miroir",
+  titre:"Miroir de la semaine 3",
+  meta:"133 mots · 49 s dites · ~44 s à l’écran · une question toutes les 11 s · Q4 = le TAEG",
+  duree:49,
+  hooks:[
+    {t:"Quatre questions sur la semaine. Deux réponses surprennent.", n:"le meilleur — court, installe le compteur"},
+    {t:"Quatre affirmations. Trois sont fausses. À vous."},
+    {t:"Vous avez suivi la semaine ? On vérifie."}
+  ],
+  blocs:[
+    {t:"0 – 3 s", d:["Quatre questions sur la semaine. Deux réponses surprennent."],
+     v:"Plan serré. Compteur 1/4 en haut de cadre, présent toute la vidéo. ⚠️ Le rythme fait le format : coupe sèche entre chaque question, pastille qui claque sur la réponse, aucun silence. Si le montage laisse respirer, on passe à 55 s et la vidéo perd son nerf. ⚠️ Aucune capture neuve sauf le visuel TAEG : les trois premières questions remontent des visuels de la semaine."},
+    {t:"3 – 14 s   ◆ Q1 · LUNDI", d:["Les ETF vont faire exploser la Bourse. Faux. Ils ne détiennent qu’une minorité du marché, et le krach de vingt-neuf est arrivé soixante ans avant le premier ETF."],
+     v:"Pastille FAUX. Le camembert + la frise 1929 → 1993 du lundi ressortent. Renvoi : LUNDI. ⚠️ Ne plus dire « 1929, 2000 et 2008 sans ETF » : le premier ETF date de 1993, seul 1929 est incontestable (64 ans avant). Formulation corrigée du lundi — les deux vidéos disent la même chose."},
+    {t:"14 – 27 s   ◆ Q2 · MARDI · PHRASE À PROTÉGER", d:["Si j’achète le même ETF sur mon PEA ou mon compte-titres, il n’y a pas de différence. Faux. Après cinq ans, dix-huit virgule six pour cent de prélèvements en PEA, trente et un virgule quatre en compte-titres. L’écart, c’est l’impôt sur le revenu."],
+     v:"Pastille FAUX. L’animation des 12,8 points du mardi ressort. Renvoi : MARDI. ⚠️ « L’écart, c’est l’impôt sur le revenu » est la seule question qui apprend encore quelque chose à qui a vu la vidéo. Si un arbitrage de durée s’impose, c’est la phrase à protéger."},
+    {t:"27 – 38 s   ◆ Q3 · MERCREDI · ⚠ VRAI/NUANCE À TRANCHER", d:["LVMH, c’est l’action que tout le monde veut. Vrai. LVMH est présent dans énormément de portefeuilles des Français, comme Total ou Air Liquide."],
+     v:"Pastille NUANCE. L’incrust des résultats 2025 ressort. Renvoi : MERCREDI. ⚠️⚠️ CONTRADICTION À TRANCHER AVANT DE TOURNER : l’oral dit « Vrai » mais la pastille et la fiche de réponse disent NUANCE (ventes −1 %, bénéfice −13 % en 2025). Les deux ne peuvent pas coexister à l’écran. Version cohérente proposée, alignée sur l’audit : « …Nuance. En 2025, ses ventes ont reculé et son bénéfice a baissé de treize pour cent. Très rentable, mais pas increvable. » ⚠️ La nuance porte sur « tout le monde en veut », pas sur la qualité du groupe : LVMH a gagné 10,88 Md€ en 2025, ne pas laisser entendre l’inverse. ⚠️ LVMH nommée (société cotée) : aucune recommandation."},
+    {t:"38 – 49 s   ◆ Q4 · JEUDI · LE TAEG", d:["Pour comparer deux crédits, il suffit de regarder le taux. Faux. Le seul chiffre qui compte, c’est le TAEG : il additionne tout — intérêts, assurance, frais de dossier, garantie.","Abonne-toi."],
+     v:"Pastille FAUX. Le TAEG s’écrit à l’écran, ses quatre composants qui s’empilent : taux + assurance + dossier + garantie. Renvoi : JEUDI. Carton de fin + disclaimer. ⚠️ Le TAEG est le SEUL terme technique autorisé, et c’est voulu : c’est le réflexe utile de la semaine crédit. Définition en une phrase (« il additionne tout »), les quatre composants s’empilent à l’écran pour qu’on les voie sans les mémoriser. Ne pas allonger — c’est court exprès. C’est une notion réglementaire (Code de la consommation), pas un produit."}
+  ]
+},
+{
+  id:"sam-luxe-chine", jour:"Samedi 26/09", format:"Géopolitique · tie-in LVMH",
+  titre:"Le luxe français se décide ailleurs",
+  meta:"187 mots · 70 s dites · ~63 s à l’écran · audit du 03/09 : chiffre client corrigé · aucune case au-dessus de 167 mots/min",
+  duree:70,
+  hooks:[
+    {t:"Vous achetez du CAC 40. Vous pariez sur le consommateur asiatique. Je vous montre comment.", n:"le meilleur — l’affirmation est contre-intuitive et la vidéo la prouve en quatre maillons"},
+    {t:"Soixante millions de clients du luxe ont disparu en trois ans. Ça se voit dans votre PEA."},
+    {t:"Une marque française, un client à dix mille kilomètres, et votre épargne au milieu."}
+  ],
+  blocs:[
+    {t:"0 – 6 s", d:["Vous achetez du CAC 40. Vous pariez sur le consommateur asiatique. Je vous montre comment."],
+     v:"Plan serré, regard caméra. Pastille : VOUS PARIEZ SUR L’ASIE. ⚠️ « Consommateur asiatique » dans le hook et la chute, « Chine continentale » seulement sur le chiffre : le chiffre précis porte sur la Chine, le mécanisme vaut pour l’Asie au sens large."},
+    {t:"6 – 15 s", d:["Le luxe mondial, c’est trois cent cinquante-huit milliards d’euros. La Chine continentale en pèse douze pour cent. Et elle a reculé en 2025."],
+     v:"INCRUST — étude Bain & Company / Altagamma 2025, ligne du marché chinois surlignée. Mention « Chine continentale » LISIBLE. Pastille : 358 MILLIARDS. ⚠️⚠️ NE PAS dire « la clientèle chinoise pèse 30 % du luxe » : la Chine continentale pèse 12 % (43 Md€ sur 358). Les 25-30 % qu’on lit partout désignent les consommateurs chinois où qu’ils achètent, Paris et Milan compris — deux notions, deux mesures. Le script n’utilise QUE le chiffre géographique, celui de la capture."},
+    {t:"15 – 30 s   ◆ LE CHIFFRE FORT · BLOC À PROTÉGER", d:["Mais le chiffre qui compte n’est pas là. Le nombre de clients du luxe dans le monde est passé de quatre cents millions en 2022 à trois cent quarante millions en 2025. Soixante millions de clients partis en trois ans."],
+     v:"GRAPHIQUE — la base de clientèle qui fond, 400 M → 340 M, datée. Pastille : 60 MILLIONS DE CLIENTS EN MOINS. ⚠️ Le chiffre fort de la vidéo n’est PAS la Chine, c’est la base de clientèle : incontestable, et personne ne le raconte. Si un arbitrage de durée s’impose, c’est le bloc à protéger."},
+    {t:"30 – 42 s   ◆ LA CHAÎNE · 4 MAILLONS", d:["Et la chaîne est courte. Moins de clients, moins de sacs vendus. Moins de sacs, moins de bénéfices pour les maisons françaises. Et le luxe pèse lourd dans le CAC 40."],
+     v:"SCHÉMA en quatre maillons qui s’allument un par un : CLIENTS → VENTES → BÉNÉFICES → INDICE. Pastille : QUATRE MAILLONS. ⚠️ La chaîne reste à QUATRE maillons : ajouter le taux de change, le tourisme ou les droits de douane double la longueur et perd le spectateur — chacun vaut sa propre vidéo. ⚠️ « Le luxe pèse lourd dans le CAC 40 » sans chiffre (ou avec un chiffre daté) : les pondérations bougent tous les jours."},
+    {t:"42 – 51 s   ◆ L’INVERSE · PAS DÉCORATIF", d:["L’inverse marche aussi. Un rebond de la consommation asiatique, et le luxe européen repart. C’est le même fil, tiré dans l’autre sens."],
+     v:"Le schéma se rejoue à l’envers, les quatre maillons remontent. Pastille : ÇA MARCHE DANS LES DEUX SENS. ⚠️ Ce bloc n’est PAS décoratif : sans lui la vidéo ne décrit qu’un risque et devient anxiogène. Avec lui, elle décrit un mécanisme — c’est la différence entre expliquer et alarmer."},
+    {t:"51 – 64 s", d:["Donc votre ETF France ou Europe respire au rythme d’un client qui vit à dix mille kilomètres. Acheter français en Bourse, c’est souvent parier sur quelqu’un qui ne l’est pas."],
+     v:"Rappel visuel du mercredi (la marge LVMH), puis la pondération du luxe dans le CAC 40, datée. Pastille : PAS SI FRANÇAIS QUE ÇA. ⚠️ Ne PAS refaire le mercredi 23/09 : LVMH a eu sa vidéo la veille. Ici on parle du SECTEUR et du CLIENT, pas d’une entreprise — le rappel de la marge dure deux secondes."},
+    {t:"64 – 70 s   ◆ LA CHUTE", d:["Ce n’est ni bien ni mal. C’est juste ce que vous détenez vraiment.","Abonne-toi."],
+     v:"Retour plan serré, débit ralenti. Carton de fin + disclaimer. ⚠️ « Ce n’est ni bien ni mal » empêche la vidéo de devenir un procès de la mondialisation. NE SE COUPE PAS. ⚠️ Conformité : aucune recommandation d’achat, de vente ou d’arbitrage — on décrit la composition réelle d’un indice, on ne conseille pas d’en sortir."}
+  ]
+},
+{
+  id:"jeu-mensualite", jour:"Jeudi 24/09", format:"Cours Produits · Arc C",
+  titre:"Votre mensualité de crédit, décortiquée",
+  meta:"~215 mots · 85 s dites · ~76 s à l’écran · ⚠ le taux de 3,61 % est à relever la semaine du tournage — six chiffres en dépendent",
+  duree:85,
+  hooks:[
+    {t:"Votre mensualité, il y a quoi dedans ? Vous allez voir où partent vos premières années.", n:"le meilleur — il promet une révélation sur quelque chose qu’on paie déjà"},
+    {t:"Deux cent mille euros empruntés. Cent quatre mille euros d’intérêts. Voilà le vrai prix."},
+    {t:"Il faut six ans pour que votre mensualité rembourse plus de maison que d’intérêts."}
+  ],
+  blocs:[
+    {t:"0 – 6 s", d:["Votre mensualité, il y a quoi dedans ? Vous allez voir où partent vos premières années."],
+     v:"Plan serré, regard caméra. Pastille : QU’EST-CE QU’IL Y A DEDANS. ⚠️ Conformité sur toute la vidéo : aucune banque, aucun courtier, aucun assureur nommé. Aucune incitation à emprunter, à renégocier ou à changer d’assurance — on explique une mécanique et on nomme un droit."},
+    {t:"6 – 14 s", d:["Trois choses : des intérêts, du capital, et l’assurance. Et au début, ce n’est pas la maison que vous remboursez."],
+     v:"La mensualité se découpe en trois blocs à l’écran. Pastille : TROIS PARTS"},
+    {t:"14 – 32 s   ◆ ⚠ LE TAUX PORTE TOUT", d:["Prenons un cas concret. Une maison à deux cent vingt mille euros. Vous avez vingt mille d’apport, donc vous empruntez deux cent mille, sur vingt-cinq ans, à trois virgule soixante et un pour cent, le taux moyen de septembre. Votre mensualité : mille treize euros, hors assurance."],
+     v:"TABLEAU d’hypothèses AFFICHÉ EN PERMANENCE : maison 220 000 €, apport 20 000 €, emprunt 200 000 €, 25 ans, 3,61 %, hors assurance. Source datée : « taux de marché sur 25 ans, septembre 2026 », courtier flouté. Pastille : 1 013 € PAR MOIS. ⚠️ L’apport ne change AUCUN des six chiffres — c’est l’emprunt (200 000 €) qui commande tout : on peut donc habiller le décor sans rien recalculer. ⚠️ Le taux doit TOUJOURS porter sa durée : « 3,61 % » sans « sur 25 ans » est un chiffre en l’air, et c’est exactement ce qui crée la confusion avec la statistique de la Banque de France. ⚠️ NE PAS afficher la Banque de France ici : son 3,27 % (juin 2026) est toutes durées confondues et contredirait visuellement le 3,61 % prononcé. ⚠️ Donnée mensuelle : à relever la semaine du tournage. Si le taux a bougé, REFAIRE tout le tableau d’amortissement — jamais ajuster un chiffre à la main, les six chiffres de la vidéo sortent du même calcul."},
+    {t:"32 – 40 s", d:["La première mensualité : six cent deux euros d’intérêts, quatre cent onze de capital. Soixante pour cent part à la banque."],
+     v:"PLEIN ÉCRAN — les 1 013 € découpés : 602 € en rouge, 411 € en vert. Pastille : 60 % D’INTÉRÊTS. (Valeurs exactes recalculées : mensualité 1 013,08 € · intérêts 601,67 € · capital 411,42 € · part 59,4 %.) ⚠️ Ne pas dire « la banque se gave » : les intérêts sont le prix du temps et du risque, pas une marge cachée. Même registre que pour AXA — on montre une mécanique, on n’accuse personne."},
+    {t:"40 – 53 s", d:["Et ça s’inverse seulement au mois soixante et onze. Autrement dit, pendant presque six ans, chaque mensualité rembourse plus d’intérêts que de maison. Au total : cent quatre mille euros d’intérêts, sur deux cent mille empruntés."],
+     v:"COURBE d’amortissement sur 25 ans, croisement marqué au mois 71. Pastille : MOIS 71 · 104 000 € D’INTÉRÊTS. (Total exact : 103 925 €.) ⚠️ Le renvoi au Débunk du lundi 28/09 (« louer, c’est jeter l’argent par les fenêtres ») N’EST PAS DIT : le mois 71 en est exactement le point d’équilibre, le spectateur fera le lien tout seul et c’est plus fort ainsi. ⚠️ C’est aussi la raison de fond de garder le taux 25 ans : à 3,27 % le croisement tombe au mois 47 (3,9 ans) et le lien entre les deux vidéos disparaît."},
+    {t:"53 – 66 s", d:["Et l’assurance ? Entre cinq mille et vingt mille euros sur vingt-cinq ans, selon votre âge. C’est le poste qu’on oublie de négocier, et il se résilie à tout moment depuis la loi Lemoine."],
+     v:"Deux barres, 5 000 € et 20 000 €, avec les taux 0,10 % et 0,40 % affichés. Pastille : LOI LEMOINE · À TOUT MOMENT. ⚠️ L’assurance se calcule sur le CAPITAL INITIAL ou sur le capital restant dû, et l’écart final est important : le script prend l’initial (le cas le plus courant) et doit AFFICHER cette base. Jamais un chiffre unique sans dire sur quoi il porte. ⚠️ La fourchette dépend fortement de l’âge et de l’état de santé : « selon votre âge » est le minimum, et ne jamais laisser croire que 0,10 % est accessible à tout le monde."},
+    {t:"66 – 77 s", d:["Dernier point : rembourser par anticipation, c’est votre droit. Les indemnités sont plafonnées à six mois d’intérêts, et jamais plus de trois pour cent du capital restant."],
+     v:"Carton : 6 MOIS D’INTÉRÊTS · MAX 3 %. Pastille : C’EST PLAFONNÉ. Capture : Code de la consommation, plafonnement des indemnités de remboursement anticipé."},
+    {t:"77 – 85 s   ◆ LA CHUTE", d:["Et on ne compare jamais le taux. On compare le TAEG : c’est le seul chiffre qui contient tout.","Abonne-toi."],
+     v:"TAEG qui s’écrit à l’écran avec ses composants : intérêts + assurance + dossier + garantie. Carton de fin + disclaimer."}
+  ]
+},
+{
+  id:"mer-lvmh", jour:"Mercredi 23/09", format:"Cours 40",
+  titre:"LVMH",
+  meta:"~480 mots · ~2 min 55 dites · ~2 min 35 à l’écran · correction du 03/09 appliquée",
+  duree:175,
+  hooks:[
+    {t:"LVMH, c’est l’action que tout le monde veut. En 2025, son bénéfice a baissé de treize pour cent.", n:"le meilleur — la croyance et le fait dans la même respiration"},
+    {t:"Soixante-quinze maisons, quatre-vingts milliards de ventes. Et une famille qui vient de passer la barre des cinquante pour cent."},
+    {t:"On dit que le luxe ne connaît pas la crise. Ouvrons les comptes."}
+  ],
+  blocs:[
+    {t:"0 – 10 s   ◆ OUVERTURE", d:["LVMH, la première capitalisation française, l’action que tout le monde veut. En 2025, son bénéfice a baissé de treize pour cent. Mais comment ça se fait ?"],
+     v:"LOGO LVMH seul une seconde sur fond blanc, puis plan serré. Pastille : À MOITIÉ VRAI. ⚠️⚠️ « Première capitalisation FRANÇAISE », JAMAIS « européenne » ni « d’Europe » : ASML est passée devant en 2026 (578,5 Md€). Si la formulation revient au tournage, la vidéo est fausse dès la 3e seconde. « Française » ne dépend d’aucun périmètre."},
+    {t:"10 – 42 s   ◆ L’HISTOIRE", d:["D’abord, c’est quoi LVMH ? Soixante-quinze maisons : Louis Vuitton, Dior, Moët, Hennessy, Tiffany. Et un homme, Bernard Arnault, entré par le textile en 1984, qui prend le contrôle à la fin des années quatre-vingt et passe quarante ans à racheter. Le groupe qu’on connaît aujourd’hui, c’est quarante ans d’acquisitions."],
+     v:"FRISE avec un LOGO de maison qui tombe à chaque nom prononcé, puis se range sous le logo LVMH qui grossit. Pastille : 75 MAISONS. ⚠️ Dates à vérifier sur lvmh.com/notre-histoire AVANT de graver le montage. ⚠️ Logos officiels, non déformés, jamais recolorés, jamais accolés au logo de la chaîne."},
+    {t:"42 – 68 s   ◆ LES FAITS 2025", d:["Les faits en 2025. Quatre-vingts virgule huit milliards d’euros de ventes, en repli de un pour cent. Une marge opérationnelle de vingt-deux pour cent, contre vingt-trois l’année d’avant. Et dix milliards huit cent quatre-vingts millions de bénéfice net, en baisse de treize pour cent.","C’est une très belle année pour n’importe qui. C’est une mauvaise année pour LVMH."],
+     v:"INCRUST des résultats annuels 2025, les trois lignes surlignées. Pastille : 80,8 MILLIARDS · MARGE 22 %. ⚠️ 80,81 Md€ (pas 85), marge 22 % (pas 23-26), net 10,88 Md€ : le brief portait des ordres de grandeur périmés. ⚠️ « Baissé de 13 % » ne veut PAS dire « LVMH perd de l’argent » : le groupe a gagné 10,88 Md€. La phrase « très belle année pour n’importe qui, mauvaise année pour LVMH » est là exactement pour ça — elle NE SE COUPE PAS."},
+    {t:"68 – 100 s   ◆ LE PRICING POWER", d:["Alors pourquoi cette réputation ? Un mot : quand ses coûts montent, LVMH monte ses prix, et ses clients restent. Ça s’appelle le pouvoir de fixer ses prix. Très peu d’entreprises l’ont. C’est ce qui fait vingt-deux pour cent de marge dans un groupe de cette taille — et c’est ce que la Bourse paie cher."],
+     v:"VISUEL — une étiquette de prix qui monte, une file d’attente qui ne bouge pas. Pastille : PRICING POWER. ⚠️ C’est le CONCEPT à faire passer, pas le chiffre : il resservira dans toutes les vidéos d’entreprise. Trente secondes, un visuel simple, aucun jargon autour."},
+    {t:"100 – 130 s   ◆ LE CONTRÔLE · LA PHRASE NEUVE", d:["Et il y a une chose dont on ne parle presque jamais. En février 2026, la famille Arnault a franchi les cinquante pour cent du capital. Cinquante virgule zéro un exactement, et soixante-cinq virgule quatre-vingt-quatorze pour cent des droits de vote. Autrement dit : quand vous achetez cette action, vous n’achetez pas une voix. Vous suivez."],
+     v:"DEUX JAUGES, capital 50,01 % et droits de vote 65,94 %, DATÉES février 2026. Pastille : 65,94 % DES VOIX. ⚠️ 50,01 % / 65,94 %, pas 48 % / 64 % : le franchissement date de février 2026. Fin 2025 c’était 49,77 % / 65,89 % — si la capture montre ces chiffres, elle est périmée. ⚠️ « Vous n’achetez pas une voix, vous suivez » est la phrase la plus forte et la seule vraiment neuve : factuelle (à 65,94 % des voix, aucune résolution ne passe sans la famille). NE PAS l’adoucir."},
+    {t:"130 – 175 s   ◆ FRAGILITÉ + VERDICT", d:["La contrepartie de cette qualité, c’est ce dont elle dépend. Le luxe mondial a reculé en 2025, et c’est la clientèle asiatique qui donne le rythme. Quand elle ralentit, la marge de LVMH le sent — et le CAC 40 aussi, parce que le luxe y pèse lourd.","Le verdict : ce n’est pas une machine à cash. C’est une très belle entreprise, cyclique, contrôlée par une famille, et suspendue à un client qui vit à dix mille kilomètres. On va voir ce client de plus près. Alors pour ne rien manquer, abonne-toi."],
+     v:"Carton VERDICT au format figé du Cours 40, puis regard caméra. Carton de fin + disclaimer + « sources en description ». ⚠️ Ne pas empiéter sur le samedi 26/09 : la Chine est juste NOMMÉE comme la dépendance et renvoyée. Le mécanisme complet (clients, ventes, CAC 40, votre ETF) appartient au samedi. ⚠️ Le poids de LVMH dans le CAC 40 bouge tous les jours : s’il est cité, il est daté à l’écran ; sinon « le luxe pèse lourd dans l’indice », sans chiffre. ⚠️ Conformité : ni « il faut acheter », ni « c’est trop cher » — on décrit des comptes publics, aucun avis sur l’action."}
+  ]
+},
+{
+  id:"geo-dette-fr", jour:"Géopolitique · France", format:"Géopolitique",
+  titre:"Qui détient vraiment notre dette ?",
+  meta:"271 mots · 102 s dites · ~92 s à l’écran · remplace le samedi 03/10 · tournable sans donnée de taux",
+  duree:102,
+  hooks:[
+    {t:"La France doit trois mille cinq cents milliards d’euros. Et personne ne sait exactement à qui.", n:"le meilleur — c’est vrai, ça surprend, et la vidéo le démontre"},
+    {t:"Si vous avez une assurance-vie, vous prêtez déjà de l’argent à l’État français."},
+    {t:"Le deuxième créancier de la France, c’est le Luxembourg. Sauf que le Luxembourg ne nous prête pas un centime."}
+  ],
+  blocs:[
+    {t:"0 – 11 s", d:["La France doit trois mille cinq cents milliards d’euros. Plus de la moitié à des gens qui ne vivent pas ici. Alors à qui on doit cet argent ?"],
+     v:"Plan serré, débit posé. COMPTEUR de la dette, daté du jour. Pastille : À QUI ON DOIT ÇA ? ⚠️ Compteur = donnée continue : à relever le matin du tournage et à dater. Tourner une prise alternative SANS décimales (« plus de trois mille cinq cents milliards »). ⚠️ Aucun jugement politique sur toute la vidéo : on ne dit pas que la dette est trop élevée, ni qui en est responsable. Le spectateur conclut seul."},
+    {t:"11 – 22 s", d:["D’abord le coût. Cette année, la France paie soixante-quatorze milliards d’euros d’intérêts. En deux mille vingt, c’était trente-cinq milliards. La facture a doublé en six ans."],
+     v:"DEUX CHIFFRES qui s’affichent, 35 puis 74, avec leurs dates et leur périmètre. Pastille : ×2 EN SIX ANS. ⚠️ Plusieurs périmètres coexistent : 74 Md€ = toutes administrations publiques, 58 Md€ pour l’État seul. Chaque chiffre porte son périmètre à l’écran."},
+    {t:"22 – 30 s", d:["C’est l’équivalent du budget de l’Éducation nationale. Chaque euro d’intérêt ne finance ni une école, ni un hôpital."],
+     v:"DEUX BARRES quasi égales, INTÉRÊTS DE LA DETTE / ÉDUCATION NATIONALE, avec la mention « hors pensions » et la date. Pastille : AUTANT QUE L’ÉCOLE. ⚠️ Dire « le NIVEAU du budget de l’Éducation nationale », JAMAIS « plus que » : selon le périmètre la charge est tantôt devant, tantôt derrière. La comparaison ne vaut qu’hors pensions."},
+    {t:"30 – 44 s   ◆ ALPHA 1 · VOUS ÊTES CRÉANCIER", d:["Alors qui prête à la France ? D’abord, nous. La Banque de France en détient un cinquième, héritage des rachats de la BCE. Les assureurs, neuf pour cent : ça, c’est le fonds euros de votre assurance-vie. Les banques françaises, neuf aussi."],
+     v:"CAMEMBERT côté français qui se remplit part par part : BANQUE DE FRANCE 20 % · ASSUREURS 9 % · BANQUES 9 %. Sur « c’est votre assurance-vie », la part des assureurs CLIGNOTE. Pastille : VOUS ÊTES CRÉANCIER. ⚠️ LA phrase à ne pas rater : le spectateur découvre qu’il est créancier de l’État sans l’avoir décidé — après trois semaines d’assurance-vie à l’antenne, la boucle se referme. ⚠️ Ne PAS dire « votre assurance-vie finance la dette » comme si c’était intégral : le fonds euros est en obligations d’État PARMI d’autres actifs. « Les assureurs détiennent 9 %, c’est votre assurance-vie » est exact ; « votre argent part dans la dette » serait faux. ⚠️ Préciser à l’écran que le cinquième de la Banque de France est l’héritage des rachats BCE, pas une décision française isolée. ⚠️ Les parts 20/9/9 portent sur la DETTE NÉGOCIABLE DE L’ÉTAT — ne pas les afficher sur un camembert de dette publique."},
+    {t:"44 – 52 s", d:["Le reste part à l’étranger : des fonds de pension américains, des banques centrales asiatiques, des assureurs européens, des fonds souverains."],
+     v:"Le camembert bascule côté non-résidents, quatre catégories qui s’écrivent une par une. Pastille : PLUS DE LA MOITIÉ. ⚠️ Périmètre : ~56 % sur la dette négociable de l’État, ~52 % sur la dette publique — ne pas mélanger, le chiffre porte sa base à l’écran."},
+    {t:"52 – 60 s", d:["Et par pays ? L’Allemagne, sept pour cent. Le Luxembourg, sept aussi. L’Irlande, cinq. Les États-Unis et le Japon, quatre."],
+     v:"CARTE DU MONDE, les pays créanciers qui s’allument avec leur part, SOURCE ET ANNÉE affichées (données 2023 dans les publications disponibles). Pastille : LE CLASSEMENT OFFICIEL"},
+    {t:"60 – 74 s   ◆ ALPHA 2 · LE VISUEL QUI PORTE LA VIDÉO", d:["Sauf que le Luxembourg et l’Irlande ne sont pas des investisseurs. Ce sont des adresses. Un fonds américain ou qatari qui achète par une société luxembourgeoise compte comme luxembourgeois. On ne connaît pas nos vrais créanciers."],
+     v:"LE VISUEL QUI PORTE LA VIDÉO — la carte se brouille. Le Luxembourg se transforme en boîte aux lettres, d’où repartent des flèches vers des pays en points d’interrogation. Pastille : DES ADRESSES, PAS DES PRÊTEURS. ⚠️ Ne se coupe jamais : c’est l’idée-titre de la vidéo."},
+    {t:"74 – 91 s   ◆ QATAR · SE COUPE EN ENTIER OU PAS DU TOUT", d:["Un exemple de ce que vaut cette dépendance. Le Qatar détient plus de vingt-cinq milliards d’avoirs en France. Et depuis un avenant de deux mille huit, ses entités souveraines ne paient pas d’impôt sur leurs plus-values immobilières ici. Unique dans nos conventions fiscales."],
+     v:"INCRUST — l’avenant du 14 janvier 2008 et la fiche du Trésor sur les investissements qataris. Mention à l’écran : « aucune donnée publique sur la détention d’OAT par le Qatar ». Pastille : UNIQUE AU MONDE. ⚠️ Ne JAMAIS dire « le Qatar détient notre dette » : aucune donnée publique. On dit qu’il détient plus de 25 Md€ D’AVOIRS EN FRANCE, ce qui est autre chose. ⚠️ Si le montage doit couper, il coupe ce bloc EN ENTIER — jamais séparé de son démenti (bloc suivant)."},
+    {t:"91 – 102 s   ◆ LA CHUTE · LE DÉMENTI NE SE COUPE JAMAIS", d:["Est-ce que c’est lié à la dette ? Personne ne peut le prouver. Mais quand on emprunte autant à l’étranger, on ne choisit pas toujours ses amis.","Abonne-toi."],
+     v:"Retour plan serré, débit ralenti. ⏸ Temps d’arrêt d’une demi-seconde après « personne ne peut le prouver ». Carton de fin + disclaimer. ⚠️⚠️ « Est-ce que c’est lié à la dette ? Personne ne peut le prouver » NE SE COUPE JAMAIS : c’est la condition pour que le bloc Qatar existe. Sans elle, la vidéo affirme une contrepartie que rien n’établit et devient du complotisme. ⚠️ « On ne choisit pas toujours ses amis » ne se dit QU’APRÈS le démenti, jamais isolée, jamais en accroche : c’est une conclusion sur une contrainte générale, pas une accusation visant un État."}
+  ]
+},
+{
+  id:"mar-pea-cto", jour:"Mardi 22/09", format:"Cours 60 · Arc B",
+  titre:"PEA ou compte-titres",
+  meta:"188 mots · 71 s dites · ~64 s à l’écran · audit du 03/09 : les six chiffres vérifiés, aucune erreur",
+  duree:71,
+  hooks:[
+    {t:"Le même ETF, dans deux enveloppes. Sur dix ans, l’écart va vous surprendre.", n:"le meilleur — une énigme en douze mots"},
+    {t:"Mille deux cent trente-huit euros. C’est ce que coûte la mauvaise enveloppe, sur dix mille euros placés dix ans."},
+    {t:"Dix-huit virgule six contre trente et un virgule quatre. Ce sont les deux seuls chiffres à retenir de cette vidéo."}
+  ],
+  blocs:[
+    {t:"0 – 5 s", d:["Le même ETF, dans deux enveloppes. Sur dix ans, l’écart va vous surprendre."],
+     v:"Deux boîtes, PEA et COMPTE-TITRES, le même ETF qui tombe dans chacune. Pastille : LA MÊME CHOSE DEDANS. ⚠️ Ne pas classer les enveloppes : on compare deux régimes fiscaux appliqués au même placement. Le compte-titres donne accès à des marchés que le PEA ferme — c’est un arbitrage, pas un classement. On ne dit JAMAIS « prenez un PEA ». Conformité."},
+    {t:"5 – 15 s", d:["Le compte-titres : tout est accessible, le monde entier. Mais chaque gain réalisé passe à la flat tax. Trente et un virgule quatre pour cent depuis janvier."],
+     v:"INCRUST 1 — le PFU 2026 : 12,8 % d’impôt + 18,6 % de prélèvements sociaux. Pastille : 31,4 %. ⚠️ 18,6 % et 31,4 %, JAMAIS 17,2 % et 30 % : la LFSS 2026 a porté la CSG sur les revenus du capital de 9,2 % à 10,6 % au 1er janvier. C’est le chiffre que tout le monde a encore en tête, donc c’est la capture la plus importante de la vidéo."},
+    {t:"15 – 26 s", d:["Le PEA : actions européennes, et les ETF synthétiques pour aller chercher le reste. Après cinq ans, plus d’impôt sur le revenu. Restent les prélèvements sociaux : dix-huit virgule six."],
+     v:"INCRUST 2 — BOFiP, régime du PEA (BOI-RPPM-RCM-40-50). Rappel de 2 s du SCHÉMA B du 17/09 pendant « ETF synthétiques ». Pastille : 18,6 % APRÈS 5 ANS. ⚠️ Le PEA n’est pas « exonéré », il est exonéré D’IMPÔT SUR LE REVENU. Trois mots qui changent tout : le raccourci « le PEA est défiscalisé » est faux et il sera relevé. ⚠️ Le renvoi au 17/09 est VISUEL, pas oral : le dire coûterait cinq secondes pour une information que le schéma donne mieux."},
+    {t:"26 – 39 s", d:["Le calcul. Dix mille euros, sept pour cent par an, dix ans, aucun retrait. Vous avez dix-neuf mille six cent soixante et onze euros, dont neuf mille six cent soixante et onze de gains."],
+     v:"TABLEAU, HYPOTHÈSES AFFICHÉES EN PERMANENCE : 10 000 €, 7 %/an, 10 ans, aucun retrait, HORS FRAIS de courtage et de gestion. Pastille : 9 671 € DE GAINS. ⚠️ Sans la mention « hors frais », un lecteur attentif fera remarquer que l’écart réel est plus faible. ⚠️ 7 % est une hypothèse, jamais une promesse — ne jamais dire « vous aurez »."},
+    {t:"39 – 48 s", d:["Compte-titres : trois mille trente-sept euros d’impôt. PEA : mille sept cent quatre-vingt-dix-neuf. Mille deux cent trente-huit euros d’écart, pour exactement le même placement."],
+     v:"DEUX COLONNES qui se remplissent, l’écart surligné en fin d’animation. Pastille : 1 238 € D’ÉCART. (Chiffres exacts recalculés : 3 036,86 € · 1 798,90 € · 1 237,95 € — les arrondis dits à l’oral collent.)"},
+    {t:"48 – 62 s   ◆ LA CHUTE · BLOC À PROTÉGER", d:["Et regardez d’où vient l’écart. Douze virgule huit points, au centime. C’est l’impôt sur le revenu. Le PEA ne vous fait pas économiser les prélèvements sociaux : il vous fait économiser l’impôt."],
+     v:"ANIMATION — les deux taux se superposent, la part commune de 18,6 % s’efface, il ne reste que les 12,8 points. Pastille : 12,8 POINTS = L’IMPÔT. ⚠️ C’est la SEULE chose vraiment neuve de la vidéo : tout le monde connaît « le PEA est moins taxé », presque personne ne sait que l’écart EST exactement l’impôt sur le revenu — ni que la réforme de janvier n’y a rien changé (les deux taux ont pris 1,4 point, l’écart reste 12,8). C’est le bloc à protéger si un arbitrage de durée s’impose."},
+    {t:"62 – 71 s", d:["Deux limites, et on les dit. Retirer avant cinq ans ferme le plan. Et le plafond, c’est cent cinquante mille euros de versements.","Abonne-toi."],
+     v:"Deux cartons secs : AVANT 5 ANS = FERMETURE · PLAFOND 150 000 €. Carton de fin + disclaimer. ⚠️ Les exceptions au retrait avant 5 ans (licenciement, invalidité, retraite anticipée, création ou reprise d’entreprise) vont À L’ÉCRAN, pas à l’oral : les citer coûterait huit secondes. ⚠️ Le plafond de 150 000 € est à RECONFIRMER la semaine du tournage : on est en saison budgétaire et les plafonds d’enveloppes sont des candidats classiques aux amendements."}
+  ]
+},
+{
+  id:"lun-etf-debunk", jour:"Lundi 21/09", format:"Débunk · Arc B",
+  titre:"« Les ETF vont faire exploser le marché »",
+  meta:"216 mots · 83 s dites · ~75 s à l’écran · correction du 03/09 appliquée · version relue le 03/09",
+  duree:83,
+  hooks:[
+    {t:"Cette vidéo a fait deux millions de vues. Elle a raison sur un point, et tort sur trois.", n:"le meilleur — on annonce qu’on va concéder, donc on est cru sur le reste"},
+    {t:"Le krach de vingt-neuf est arrivé soixante ans avant le premier ETF. Les marchés n’ont jamais eu besoin d’eux pour s’effondrer.", n:"corrigé le 03/09 — la version « trois krachs, zéro ETF » était fausse"},
+    {t:"Un indice, ce n’est pas un pays. C’est une liste. Et ça change tout."}
+  ],
+  blocs:[
+    {t:"0 – 8 s", d:["« Les ETF vont faire exploser la Bourse. » Cette idée tourne partout. Elle a raison sur un point. Et tort sur trois."],
+     v:"Plan serré. Montage rapide de titres alarmistes, AUCUN auteur identifiable. Pastille : RAISON SUR UN POINT. ⚠️ La concession est l’architecture de la vidéo : « elle a raison sur un point » se dit avec conviction, sans ironie. On donne un point, on en reprend trois — c’est ce qui rend le reste crédible. ⚠️ Ne pas réexpliquer ce qu’est un ETF (c’était le 17/09). Au besoin, une incrust muette « un ETF = un fonds qui copie un indice » sur les 3 premières secondes, sans coûter une seconde d’oral."},
+    {t:"8 – 19 s   ◆ LA CONCESSION", d:["Le point vrai, et il est énorme : la gestion indicielle a dépassé la gestion active. Dix-neuf mille quatre cents milliards de dollars côté indiciel, contre seize mille côté actif."],
+     v:"DEUX BARRES qui se croisent, datées début 2026. INCRUST — donnée Morningstar, mention « fonds actions américains » LISIBLE. Pastille : 19 400 CONTRE 16 000. ⚠️ Le périmètre n’est plus dit à l’oral, il est AFFICHÉ : ce sont les fonds actions américains, pas la gestion mondiale. Sans la mention à l’écran, le chiffre est faux d’un facteur important. ⚠️ C’est la capture qui porte la concession, donc la crédibilité de toute la vidéo."},
+    {t:"19 – 30 s   ◆ 1er TORT", d:["Premier tort : ils posséderaient le marché. Non. Les fonds indiciels détiennent une minorité de la Bourse américaine. Le reste appartient à tout le monde : fonds de pension, particuliers, entreprises."],
+     v:"CAMEMBERT de détention, part indicielle MINORITAIRE. Le pourcentage s’affiche AVEC SA DATE, il n’est pas dit. Pastille : UNE MINORITÉ. ⚠️ Ne jamais prononcer le pourcentage : la donnée solide date de 2021 (16 %). « Une minorité » est vrai et le restera ; « 16 % » serait un chiffre de 2021 dit en 2026. ⚠️ Si le comité veut raccourcir, LA phrase sacrifiable est « le reste appartient à tout le monde… » — le camembert la porte."},
+    {t:"30 – 50 s   ◆ 2e TORT · NE PAS COUPER EN DEUX", d:["Deuxième tort : ils fausseraient les prix. Un prix se forme par les échanges, et un fonds indiciel achète pour garder.","Et puis un indice ne pèse pas sur l’économie. Il pèse les entreprises cotées, et seulement sur leurs actions qui s’échangent. C’est juste une liste."],
+     v:"SCHÉMA — un carnet d’ordres, les gérants actifs qui s’agitent, le fonds indiciel immobile. Puis BASCULE : une carte de pays qui se transforme en liste d’entreprises, plus courte que la carte. ⏸ Demi-seconde d’arrêt APRÈS « C’est juste une liste », jamais avant. Pastille : PAS UN PAYS · UNE LISTE. ⚠️ 20 s et deux idées : ne PAS les séparer par une coupe sèche, c’est le « et puis » qui les relie. ⚠️ « Ce n’est pas un pays » a été RETIRÉ de l’oral le 03/09 — mais la pastille et le hook n° 3 le disent encore. Trancher avant de tourner : soit on remet la phrase à l’oral, soit on change la pastille. ⚠️ La formule ne s’explique pas et ne s’allonge pas : c’est la plus dense de la semaine. ⚠️ Dire « ils achètent et gardent », JAMAIS « ils ne vendent jamais » — un fonds indiciel vend (rééquilibrages, sorties, changements d’indice) ; ce qu’il ne fait pas, c’est arbitrer sur la valeur."},
+    {t:"50 – 66 s   ◆ 3e TORT · CORRIGÉ LE 03/09", d:["Troisième tort : ça va exploser. Un ETF n’a pas de mécanisme d’explosion : si tout le monde vend, il baisse comme les actions qu’il contient. Et le krach de vingt-neuf est arrivé plus de soixante ans avant le premier ETF."],
+     v:"FRISE — 1929 à gauche, 1993 à droite avec la mention PREMIER ETF, l’écart de 64 ans matérialisé entre les deux. Pastille : 64 ANS D’ÉCART. ⚠️ NE PLUS JAMAIS DIRE « trois krachs, zéro ETF » : SPY a été lancé le 22 janvier 1993, donc en 2000 et en 2008 les ETF existaient (marginaux, mais existants). Seul 1929 est incontestable, et c’est la seule date que le script utilise. Si la formulation revient au tournage, la vidéo est fausse. ⚠️ Nouvelle capture indispensable : la date de lancement de SPY — c’est elle qui tient tout ce bloc."},
+    {t:"66 – 73 s   ◆ ⚠ CONTRADICTION À TRANCHER", d:["Le vrai débat est ailleurs : trois gérants concentrent le pouvoir de vote sur une part énorme du marché car c’est eux qui possèdent les actions."],
+     v:"Rappel visuel du Cours 40 BlackRock (les barres 21,9 % / 27,5 %). Pastille : LE VRAI SUJET. ⚠️⚠️ « CAR C’EST EUX QUI POSSÈDENT LES ACTIONS » CONTREDIT DEUX CHOSES : le premier tort de cette vidéo (« ils posséderaient le marché. Non. ») et le Cours 40 BlackRock du 09/09 (« elle apparaît au capital POUR LE COMPTE de ses clients — les profits vont aux porteurs de parts, pas à elle »). C’est le genre de phrase qui se fait démonter au premier commentaire. Formulation sûre, même argument : « car c’est eux qui VOTENT les actions » — c’est justement l’écart 21,9 % / 27,5 % que le visuel affiche. ⚠️ 25 mots en 7 s = 214 mots/min : intenable en l’état."},
+    {t:"73 – 83 s   ◆ LA CHUTE", d:["Donc non, les ETF ne vont pas faire exploser la Bourse. Mais oui, ils concentrent du pouvoir. Le risque est autre part.","Pour plus d’infos comme ça, abonne-toi pour ne rien manquer.","Abonne-toi."],
+     v:"Retour plan serré, débit ralenti sur la dernière phrase. Carton de fin + disclaimer. ⚠️ « Ce n’est pas la même peur » a été remplacé le 03/09 par « le risque est autre part » — or l’audit désignait cette phrase comme LA charnière à ne pas couper, et la colonne CE QU’ON VOIT demande toujours le ralenti sur elle. À trancher avant de tourner. ⚠️ « Le vrai débat est ailleurs » vient d’être dit 7 s plus tôt : « le risque est autre part » redit la même chose avec d’autres mots. ⚠️ Le CTA est DOUBLÉ (la phrase longue puis « Abonne-toi ») : n’en garder qu’un. ⚠️ La chute oppose deux peurs, elle n’en efface pas une : on ne dit pas qu’il n’y a rien à craindre, on dit que la crainte est mal placée. NE PAS COUPER."}
+  ]
+},
+{
+  id:"ven-vf2", jour:"Vendredi 18/09", format:"Vrai ou Faux · miroir",
+  titre:"Miroir de la semaine 2",
+  meta:"102 mots · 37 s dites · ~33 s à l’écran · une question toutes les 9 s · ordre rompu : mercredi en 2, mardi en 3",
+  duree:37,
+  hooks:[
+    {t:"Quatre questions sur la semaine.", n:"le meilleur — le format se suffit, on entre directement dans le rythme"},
+    {t:"Quatre affirmations. Les quatre sont fausses. Je vous explique pourquoi."},
+    {t:"Vous avez suivi la semaine ? On vérifie."}
+  ],
+  blocs:[
+    {t:"0 – 2 s", d:["Quatre questions sur la semaine."],
+     v:"Plan serré, regard caméra. Compteur 1/4 en haut de cadre, présent toute la vidéo. ⚠️ AUCUN terme technique dans toute la vidéo — ni « ratio combiné », ni « abattement », ni « prorata », ni « réplication synthétique », ni « prélèvements sociaux ». Si un terme technique remonte au tournage, la vidéo change de public. ⚠️ Rythme sec : une question toutes les 9 s, coupe sèche entre chaque, aucun silence. Si le montage laisse respirer, on passe à 40 s et la vidéo perd son nerf."},
+    {t:"2 – 10 s   ◆ Q1 · LUNDI", d:["L’assurance-vie, c’est bloqué pendant huit ans. Faux. Vous retirez quand vous voulez."],
+     v:"Pastille FAUX. Le visuel du lundi ressort : la page « rachat » avec le mot surligné, puis DEUX MOIS MAXIMUM. Renvoi discret : LUNDI. ⚠️ Ne pas rouvrir le débat des huit ans : la réponse s’arrête à « deux mois maximum pour payer ». Ajouter « et les huit ans, c’est juste fiscal » refait le lundi et mange cinq secondes."},
+    {t:"10 – 19 s   ◆ Q2 · MERCREDI", d:["Un assureur gagne son argent sur vos cotisations. Faux. Sur cent euros de cotisation, il en gagne en moyenne moins de cinq. Mais l’assureur gagne surtout de l’argent sur le placement des cotisations."],
+     v:"Pastille FAUX. La pièce de 100 € du mercredi ressort, RECOUPÉE AU NIVEAU DU MARCHÉ : 95,30 € qui repartent, 4,70 € qui restent. Mention à l’écran, datée : « marché français non-vie, 95,3 % — ACPR, fin 2025 » (Analyses et Synthèses n° 181). Renvoi : MERCREDI. ⚠️ LE SEUL VRAI PIÈGE : ne JAMAIS dire « sept euros sur cent » — c’est le chiffre d’AXA, et la question porte sur les assureurs en général. Le même chiffre affiché pour deux périmètres différents se verrait d’une vidéo à l’autre. ⚠️ Ne pas généraliser en « les assureurs perdent de l’argent » : 95,3 %, donc sous 100, le marché est bénéficiaire. La marge est faible, pas négative."},
+    {t:"19 – 28 s   ◆ Q3 · MARDI", d:["Quand vous retirez mille euros, vous payez de l’impôt sur mille euros. Faux. Seulement sur la part de gains. Le reste, c’est votre argent."],
+     v:"Pastille FAUX. Le camembert du mardi ressort : 800 € en gris, 200 € en couleur. Sous-titre : ON NE TAXE QUE LES GAINS. Renvoi : MARDI. ⚠️ Ne citer AUCUN montant d’impôt ni aucun taux : les 30 %, les 24,7 %, l’abattement et les prélèvements sociaux appartiennent au mardi. Ici on ne corrige qu’une chose : l’assiette."},
+    {t:"28 – 37 s   ◆ Q4 · JEUDI", d:["Un ETF, c’est plus sûr qu’une action. Faux. Plus diversifié, pas plus sûr. L’indice fait moins trente, vous faites moins trente : on n’est en aucun cas à l’abri.","Dis-moi combien tu as eu en commentaire, et pour plus de vidéos comme ça, abonne-toi."],
+     v:"Pastille FAUX. SEUL VISUEL NEUF : DIVERSIFIÉ ≠ SÛR, puis une courbe qui plonge de 30 %. Regard caméra. Renvoi playlists. Carton de fin + disclaimer. ⚠️ « Plus diversifié, pas plus sûr » ne s’allonge pas et ne s’explique pas : la démonstration suit immédiatement. C’est court parce que ça doit rester en tête."}
+  ]
+},
+{
+  id:"jeu-etf", jour:"Jeudi 17/09", format:"Cours Produits",
+  titre:"Un ETF, c’est quoi vraiment ?",
+  meta:"207 mots · 79 s dites · ~71 s à l’écran · v5 du 2 sept · aucune case au-dessus de 160 mots/min",
+  duree:79,
+  hooks:[
+    {t:"Un ETF « réplique un indice ». Il y a deux façons de le faire. Et l’une des deux n’achète aucune des actions de l’indice.", n:"le meilleur — il crée la question au lieu de la poser ; exact au mot près dans les deux structures de swap"},
+    {t:"Comment un placement français peut-il contenir l’Amérique ? Avec un contrat."},
+    {t:"Un point de frais par an. Sur vingt ans, ça fait cinq mille deux cents euros."},
+    {t:"Cet été, l’État a voulu interdire ce montage. Il a renoncé le 26 août. Je vous explique ce que c’est.", n:"le plus chaud — à ne prendre que si le comité veut jouer l’actualité. Le renoncement du 26/08 est confirmé (David Amiel) : ne pas tourner de prise de secours, et se méfier des articles d’août encore bien référencés qui annoncent l’interdiction"}
+  ],
+  blocs:[
+    {t:"0 – 10 s", d:["Un ETF, ça « réplique un indice ». Il y a deux façons de le faire. Et l’une des deux n’achète aucune action de l’indice."],
+     v:"Plan serré, regard caméra. Pastille : DEUX FAÇONS. ⚠️ Dire « aucune action DE L’INDICE » : c’est ce complément qui rend la phrase exacte dans les deux structures de swap. Sans lui, elle devient fausse."},
+    {t:"10 – 16 s", d:["La première, c’est la réplication physique. Le fonds achète vraiment les actions de l’indice."],
+     v:"SCHÉMA A — l’indice à gauche, le fonds à droite, les mêmes briques recopiées une à une dans les mêmes proportions. Le schéma dit les proportions mieux que la voix : c’est pour ça qu’elles sortent de l’oral. Pastille : PHYSIQUE. ⚠️ C’est le seul bloc coupable pour tomber à 61 s — mais le couper casse la symétrie « deux façons » du hook et laisse le SCHÉMA A orphelin. Décision : on assume 71 s."},
+    {t:"16 – 31 s", d:["La deuxième, c’est la réplication synthétique. Le fonds achète un panier d’actions européennes, puis passe un contrat avec une banque : il échange la performance de ce panier contre celle de l’indice visé. Ça s’appelle un swap."],
+     v:"SCHÉMA B — le panier européen d’un côté, l’indice visé de l’autre, deux flèches qui se croisent au milieu sur une poignée de main (c’est CE schéma qui porte la vidéo). Mention à l’écran sur le panier : « le fonds en est propriétaire (swap non financé) ». Pastille : SYNTHÉTIQUE. ⚠️ Ne PAS introduire « funded / unfunded » à l’oral : deux termes de jargon pour une nuance sans effet pour l’épargnant. La mention à l’écran suffit, et c’est elle qu’on ressort en commentaire."},
+    {t:"31 – 44 s", d:["Pourquoi ce détour ? Parce que le PEA impose soixante-quinze pour cent de titres européens. Ce contrat permet d’y loger l’Amérique. Le risque sur la banque est plafonné à dix pour cent."],
+     v:"INCRUST — DIC d’un ETF S&P 500 éligible PEA, mention de réplication surlignée, NOM DU FONDS FLOUTÉ. Deux mentions à l’écran, pas à l’oral : « 10 % si la contrepartie est un établissement de crédit, 5 % sinon (UCITS art. 52) » et « exposition remise à zéro régulièrement — pratique de marché, pas obligation ». Pastilles : 75 % DE TITRES EUROPÉENS · 10 % MAXIMUM. ⚠️ Le reset quotidien reste hors antenne : dit à l’oral, il sonne comme une règle alors que c’est une pratique de marché."},
+    {t:"44 – 63 s", d:["Les frais. Zéro virgule trois pour cent par an sur un ETF actions. Un point de plus sur un fonds actif : c’est l’écart moyen publié par l’AMF. Dix mille euros, vingt ans, six pour cent : trente mille trois cents d’un côté, vingt-cinq mille de l’autre."],
+     v:"DEUX COURBES qui divergent sur 20 ans, hypothèses affichées EN PERMANENCE : 10 000 €, 20 ans, 6 % brut par an, frais déduits chaque année, hors fiscalité. Source datée à l’écran : « AMF, Lettre de l’Observatoire de l’épargne n° 65, avril 2026 — données 2025 ». Pastilles : 0,3 % · +1 POINT · 5 200 € D’ÉCART. ⚠️ Le couple de la v3 (0,2 % contre 1,8 %) était FAUX et gonflait la chute de 55 %. La formulation retenue énonce le chiffre publié (0,33 %) et l’écart publié (1 point) : elle ne peut pas être retournée. ⚠️ Les 6 % sont une hypothèse, pas une prévision — ne jamais dire « vous gagnerez »."},
+    {t:"63 – 79 s", d:["Cinq mille deux cents euros d’écart, rien que sur les frais. Mais des frais bas ne font pas un bon placement : un ETF ne protège de rien. Si l’indice fait moins trente, vous faites moins trente. Une photocopie fidèle.","Abonne-toi."],
+     v:"Retour plan serré, débit ralenti sur « photocopie fidèle ». Pastille : −30 % → −30 %. Carton de fin + disclaimer. ⚠️ Ne JAMAIS couper « mais des frais bas ne font pas un bon placement » : c’est la phrase qui empêche la chute de se lire comme une recommandation. Si un arbitrage de durée revient, tout est coupable sauf elle. ⚠️ Ne pas dire « le synthétique est plus risqué » : les deux montages portent un risque de contrepartie, aucune étude ne tranche. ⚠️ Le renvoi au Débunk ETF du 21/09 va en description, pas à l’oral."}
+  ]
+},
+{
+  id:"mer-axa", jour:"Mercredi 16/09", format:"Cours 40",
+  titre:"AXA",
+  meta:"531 mots · 3 min 13 dites · ~2 min 50 à l’écran · aucune case au-dessus de 170 mots/min",
+  duree:193,
+  hooks:[
+    {t:"AXA encaisse cent euros de cotisation. Il lui en reste sept.", n:"le meilleur — le chiffre fait tout le travail, exactement comme les 4 centimes de BlackRock"},
+    {t:"Vous payez AXA tous les mois. Vous savez ce que devient cet argent entre le moment où vous le versez et le jour où vous en aurez besoin ?"},
+    {t:"Vous avez l’impression de payer AXA pour rien. Vous n’avez pas tort. Et c’est exactement son métier."},
+    {t:"En juillet 2025, AXA a vendu la partie de son métier que BlackRock a passé quinze ans à racheter."}
+  ],
+  blocs:[
+    {t:"0 – 13 s", d:["AXA. Le premier assureur français. Celui qu’on paie toute sa vie en ayant l’impression de ne jamais rien recevoir en échange. Cette impression est fondée. Mais pas pour la raison qu’on croit. Alors ouvrons ses comptes."],
+     v:"LOGO AXA plein écran une seconde sur fond blanc — le SEUL moment où il est seul à l’image. Puis plan serré, regard caméra, aucun montage nerveux. ⏸ Temps d’arrêt sur « cette impression est fondée ». Pastille : VOUS N’AVEZ PAS TORT. ⚠️ Cette ouverture est une promesse : elle se paie à 100-125 s. Les deux blocs se gardent ou se coupent ENSEMBLE. ⚠️ Registre : ni éloge ni procès."},
+    {t:"13 – 45 s", d:["D’abord, c’est quoi un assureur ? Des millions de gens versent une cotisation, et l’entreprise paie ceux qui ont un sinistre. AXA, elle, naît en 1817 à Rouen : une mutuelle contre l’incendie, pour les fermes normandes. Pendant un siècle et demi, elle reste petite.","Le tournant, c’est un homme : Claude Bébéar, entré en 1958, patron en 1975. En 1985, il choisit un nom court, prononçable partout : AXA. Et il rachète. L’UAP en 1996 — AXA devient numéro un mondial. Winterthur en 2006. XL en 2018, pour quinze milliards de dollars."],
+     v:"FRISE rapide, un jalon par phrase — 1817 (gravure de la mutuelle incendie de Rouen), 1975 (photo de Bébéar), 1985 (le logo AXA de 1985 puis fondu vers l’actuel). Puis un LOGO qui tombe sur la frise à chaque nom : UAP 1996, WINTERTHUR 2006, XL 2018, chacun se rangeant sous le logo AXA qui grossit. Pastille : 1817. ⚠️ Dire « naît en 1817 à Rouen », JAMAIS « AXA fondée en 1817 » : la société de 1817 est un ancêtre. ⚠️ Logos officiels, non déformés, jamais recolorés."},
+    {t:"45 – 56 s", d:["Les faits. En 2025 : cent seize milliards d’euros encaissés, plus de quatre-vingt-douze millions de clients, cent cinquante-six mille salariés, cinquante-deux pays. Et huit milliards quatre cents millions de résultat opérationnel."],
+     v:"INCRUST 1 — communiqué de résultats annuels 2025 du 26 février 2026, ligne des primes surlignée. Pastille : 116 MILLIARDS D’EUROS. ⚠️ 116, pas 115,5 : prendre le chiffre de l’émetteur, pas celui repris par la presse. ⚠️ Ne PAS dire « 9,8 milliards de bénéfice » : le résultat net contient la plus-value de cession d’AXA IM. Le chiffre récurrent est le résultat OPÉRATIONNEL, 8,4 Md€. ⚠️ Recapturer clients / salariés / pays le jour du tournage."},
+    {t:"56 – 81 s", d:["Maintenant, le chiffre qui répond à la question. En assurance dommages, on l’appelle le ratio combiné. C’est tout ce qui sort — les indemnisations, plus les frais — divisé par tout ce qui rentre. Sous cent pour cent, l’assureur gagne de l’argent. Au-dessus, il en perd.","Chez AXA, en 2025 : quatre-vingt-dix virgule six. Traduction : sur cent euros de cotisation, il en repart quatre-vingt-dix euros soixante. Il reste neuf euros quarante."],
+     v:"ANIMATION en deux temps. D’abord la formule qui s’écrit : (indemnisations + frais) ÷ cotisations. Puis une jauge horizontale, trait rouge à 100 %, le curseur AXA se pose à 90,6 % — du bon côté. Ensuite SEULEMENT, INCRUST 2 — slide du ratio combiné FY2025, 90,6 % surligné. Pastille : RATIO COMBINÉ 90,6 %. ⚠️ 90,6 %, pas 90,5 % : vérifier la slide avant de filmer et surligner le chiffre qu’on prononce."},
+    {t:"81 – 92 s", d:["Et sur l’ensemble du groupe, une fois tout payé : sept euros vingt-quatre de résultat opérationnel pour cent euros encaissés. Sept euros. C’est la marge de celui qui se gave."],
+     v:"VISUEL PLEIN ÉCRAN — la pièce de 100 € découpée : 90,60 € qui repartent, 9,40 € de marge technique, puis zoom sur 7,24 € de résultat opérationnel groupe. Pastilles : 9,40 € DE MARGE · 7,24 € AU BOUT. ⚠️ 7,24 = 8,4 ÷ 116 (opérationnel, pas net). ⚠️ Ne PAS comparer aux 4 centimes de BlackRock : les bases diffèrent. La comparaison honnête se fait sur le chiffre d’affaires — BlackRock ≈ 23 € de bénéfice net pour 100 € de revenus, AXA ≈ 8. C’est la réponse à faire en commentaire."},
+    {t:"92 – 100 s", d:["Alors où est le vrai sujet ? Il n’est pas dans la marge. Il est dans ce qui se passe entre les deux."],
+     v:"Retour plan serré. Transition marquée, changement de rythme. ⏸ Une seconde de silence après « entre les deux »."},
+    {t:"100 – 125 s   ◆ LA PROMESSE SE PAIE ICI", d:["Parce qu’un assureur encaisse aujourd’hui et paie plus tard. Une garantie décennale court dix ans. Une rente d’invalidité se verse pendant vingt ans. Et très souvent, il ne paie jamais : vous cotisez toute votre vie, le sinistre n’arrive pas.","Entre les deux, l’argent est placé. Des centaines de milliards. Le vrai métier d’AXA, ce n’est pas la marge sur la cotisation : c’est ce que rapporte cet argent en attendant."],
+     v:"SCHÉMA — la cotisation entre à gauche, la barre « placée » s’allonge dans le temps, le sinistre sort à droite des années plus tard. Trois lignes : DÉCENNALE 10 ANS, RENTE D’INVALIDITÉ 20 ANS, et une troisième qui part à droite sans jamais sortir, barrée AUCUN SINISTRE. Pastille : ENCAISSER TÔT, PAYER TARD — OU JAMAIS. ⚠️ C’est ICI que l’ouverture se paie : si cette case saute au montage, l’ouverture ment. ⚠️ PAS d’assurance-vie dans les exemples — lundi et mardi on dit qu’elle se rachète à tout moment. ⚠️ « Des centaines de milliards » est un ordre de grandeur : ne jamais l’afficher comme une donnée sourcée."},
+    {t:"125 – 141 s", d:["Et c’est là que deux mille vingt-cinq devient intéressant. Le premier juillet, AXA a vendu son gestionnaire d’actifs, AXA Investment Managers, à BNP Paribas. Cinq milliards cent. Là où BlackRock a passé quinze ans à racheter des gérants, AXA vient d’en vendre un."],
+     v:"INCRUST 3 — communiqué de finalisation de la cession d’AXA IM à BNP Paribas, 1er juillet 2025. Puis rappel visuel du Cours 40 BlackRock (iShares 2009) en split-screen inversé. Pastille : AXA VEND, BLACKROCK ACHETAIT. ⚠️ Les 5,1 Md€ viennent de l’annonce de l’opération, pas du communiqué annuel : si la capture manque le jour du tournage, dire « environ cinq milliards » et ne RIEN afficher."},
+    {t:"141 – 157 s   ◆ LE PIVOT MORAL", d:["Où est parti l’argent ? Trois milliards huit cents ont été rendus aux actionnaires, en rachats d’actions, entre juillet deux mille vingt-cinq et janvier deux mille vingt-six. Pas dans les contrats. Aux actionnaires.","Ce n’est ni illégal ni scandaleux. C’est un choix. Mais c’est un choix."],
+     v:"INCRUST 4 — ligne du communiqué annuel 2025 : rachat d’actions de 3,8 Md€ exécuté du 2 juillet 2025 au 20 janvier 2026. Pastille : 3,8 MILLIARDS AUX ACTIONNAIRES. ⚠️ « Ce n’est ni illégal ni scandaleux, c’est un choix » est le pivot moral de la vidéo : à dire LENTEMENT, et à ne jamais couper au montage. Sans elle, la vidéo devient un procès."},
+    {t:"157 – 174 s", d:["Le verdict. AXA ne se gave pas : elle garde sept euros sur cent. Mais regardez ce qu’elle a choisi de garder. Elle a vendu la gestion de l’argent — le métier calme, celui qui prend des frais tous les ans, quoi qu’il arrive. Et elle a gardé le risque."],
+     v:"Carton VERDICT, format figé du Cours 40. Sur « le métier calme », le LOGO AXA IM glisse hors du cadre vers le LOGO BNP PARIBAS. Sur « elle a gardé le risque », coupe sèche au noir. Pastille : 7 EUROS SUR 100"},
+    {t:"174 – 193 s", d:["Celui dont la facture monte. Les catastrophes naturelles lui ont coûté trois virgule quatre points de ratio combiné sur la seule année deux mille vingt-cinq. Alors la vraie question, ce n’est pas de savoir si AXA gagne trop. C’est de savoir ce que coûtera, demain, le risque qu’elle a choisi de garder.","Abonne-toi."],
+     v:"La barre des catastrophes naturelles monte : 3,4 POINTS DE RATIO COMBINÉ · 2025. Puis noir, retour plan serré pour les deux dernières phrases, débit ralenti. ⏸ Une seconde de silence avant « C’est de savoir ». Carton de fin + disclaimer + « sources en description ». ⚠️ Dire « trois virgule quatre POINTS de ratio combiné », JAMAIS « milliards » — un mot d’écart et le chiffre est faux. ⚠️ La chute pose une question sur le secteur, elle n’annonce pas une faillite : AXA affiche 218 % de solvabilité au 30/06/2026. Ne pas durcir la formulation au tournage."}
+  ]
+},
+{
+  id:"mar-calcul", jour:"Mardi 15/09", format:"Le calcul, au centime",
+  titre:"« Ces huit ans, ils valent combien ? »",
+  meta:"173 mots · 67 s dites · ~61 s à l’écran · aucune case au-dessus de 162 mots/min",
+  duree:67,
+  hooks:[
+    {t:"Vous retirez mille euros de votre assurance-vie. Vous êtes taxé sur deux cents.", n:"le meilleur — contre-intuitif, chiffré, et il ouvre directement sur la règle du prorata"},
+    {t:"Attendre huit ans, sur un retrait de mille euros, ça vous rapporte vingt-cinq euros soixante."},
+    {t:"Trente pour cent d’impôt sur l’assurance-vie ? Non. Six pour cent. Je vous montre."}
+  ],
+  blocs:[
+    {t:"0 – 10 s", d:["Hier, on a dit que les huit ans étaient une date fiscale, pas une serrure. Aujourd’hui, le calcul. Combien coûtent vraiment ces huit ans ? Au centime."],
+     v:"Plan serré, regard caméra. Débit posé. Pastille : AU CENTIME. ⚠️ Ne PAS refaire le débunk « bloqué » ici — c’est le lundi. Cette vidéo n’a droit qu’à cette phrase de rappel. ⚠️ Registre : la croyance des 30 % vient d’un vrai taux appliqué à la mauvaise assiette. On corrige l’assiette, jamais la personne."},
+    {t:"10 – 23 s", d:["D’abord la règle que personne ne dit. Quand vous retirez, on ne taxe pas votre retrait. On taxe la part de gains qu’il contient, au prorata. Le reste, c’est votre argent : jamais taxé."],
+     v:"INCRUST 1 — la formule à l’écran : part de gains = retrait × (gains ÷ valeur du contrat). Pastille : AU PRORATA. ⚠️ C’est LA seule vraie information de la vidéo : si cette phrase saute au montage, la vidéo ne sert plus à rien — c’est elle qui explique le taux réel de 6 %."},
+    {t:"23 – 34 s", d:["Un exemple. Contrat de vingt mille euros, dont quatre mille de gains. Vous retirez mille euros. La part taxable, ce n’est pas mille : c’est deux cents euros. Un cinquième."],
+     v:"INCRUST 2 — CAMEMBERT du retrait de 1 000 € : 800 € de capital en gris, 200 € de gains en couleur (à fabriquer, il porte tout l’argument). Pastille : 200 € TAXABLES, PAS 1 000 €"},
+    {t:"34 – 44 s", d:["Avant huit ans : trente pour cent de deux cents. Soixante euros. Après huit ans, l’abattement efface l’impôt sur le revenu ; restent les prélèvements sociaux. Trente-quatre euros quarante."],
+     v:"INCRUST 3 — TABLEAU deux colonnes : AVANT 8 ANS 60 € / APRÈS 8 ANS 34,40 € (à fabriquer). Pastille : 60 € CONTRE 34,40 €. ⚠️ 30 %, PAS 31,4 % : le PFU de droit commun est passé à 31,4 % au 1er janvier 2026, mais l’assurance-vie en est exclue et garde 17,2 % de prélèvements sociaux. ⚠️ Ne jamais dire « après huit ans on ne paie rien » — l’abattement ne porte que sur l’impôt sur le revenu."},
+    {t:"44 – 51 s", d:["L’écart : vingt-cinq euros soixante. Voilà ce que valent les huit ans sur ce retrait. Vingt-cinq euros soixante."],
+     v:"Retour plan serré. ⏸ Temps d’arrêt d’une demi-seconde après le premier « vingt-cinq euros soixante ». Pastille : 25,60 €"},
+    {t:"51 – 67 s", d:["Deux nuances, et on les dit. Sur un gros contrat, ça compte : cent mille euros, retrait de vingt mille, l’écart monte à six cent soixante-trois euros. Et l’abattement ne vaut que pour l’impôt : les prélèvements sociaux, vous les payez toujours.","Abonne-toi."],
+     v:"INCRUST 4 — le calcul du gros contrat en surimpression, puis la ligne « prélèvements sociaux 17,2 % dus dans tous les cas ». Porter aussi dans l’incrust, sans l’oraliser : versements postérieurs au 27/09/2017, et seuil de 150 000 € de primes. Puis regard caméra, carton de fin + disclaimer. ⚠️ Ordre imposé : le prorata, puis le petit exemple, puis SEULEMENT le gros contrat — commencer par le gros cas donne raison à la croyance qu’on corrige."}
+  ]
+},
+{
+  id:"lun-bloque", jour:"Lundi 14/09", format:"Débunk",
+  titre:"« L’assurance-vie, c’est bloqué 8 ans »",
+  meta:"198 mots · 77 s dites · ~72 s à l’écran · cible 60 s non tenue",
+  duree:77,
+  hooks:[
+    {t:"« L’assurance-vie, c’est bloqué huit ans. » Soixante-douze milliards d’euros sont sortis des contrats en six mois.", n:"le meilleur — la croyance et sa réfutation dans la même respiration, sans traiter personne d’ignorant"},
+    {t:"Le mot « bloqué » n’apparaît nulle part dans votre contrat d’assurance-vie. Nulle part."},
+    {t:"Votre assureur a deux mois pour vous rendre votre argent. C’est écrit dans la loi."}
+  ],
+  blocs:[
+    {t:"0 – 9 s", d:["« L’assurance-vie, c’est bloqué huit ans. » C’est la phrase la plus répétée sur l’épargne française. Soixante-douze milliards d’euros sont sortis des contrats entre janvier et juin."],
+     v:"Plan serré, regard caméra. Débit posé. Pastille : SOIXANTE-DOUZE MILLIARDS. ⚠️ Registre : on ne se moque de personne — on corrige le fait, jamais la personne."},
+    {t:"9 – 20 s", d:["Le mot « bloqué » n’existe nulle part. Ni dans le Code des assurances, ni dans votre contrat. Un contrat d’épargne se rachète à tout moment, en partie ou en totalité."],
+     v:"INCRUST 1 — la page « rachat » d’un contrat réel, le mot RACHAT surligné en jaune. ⚠️ Flouter le nom de l’assureur (conformité). Pastille : À TOUT MOMENT. ⚠️ Dire « un contrat d’épargne », jamais « un contrat » : l’article L132-23 liste les contrats non rachetables."},
+    {t:"20 – 32 s", d:["Et il y a un délai. L’assureur a deux mois maximum pour vous verser l’argent. Au-delà, il vous doit des intérêts de retard. En pratique, c’est quelques jours à quelques semaines."],
+     v:"INCRUST 2 — article L132-21 du Code des assurances sur Légifrance, « deux mois » surligné, et la mention « à compter de la demande complète ». Pastille : DEUX MOIS MAXIMUM. ⚠️ « Quelques jours à quelques semaines » est un ordre de grandeur : jamais « en moyenne », jamais affiché comme un chiffre daté. ⚠️ Légifrance bloque les robots : capture à la main."},
+    {t:"32 – 44 s", d:["Les chiffres le disent mieux que moi. De janvier à juin : soixante-douze milliards sortis des contrats. Douze milliards six cents millions rien qu’en juin. Ce n’est pas un produit bloqué."],
+     v:"INCRUST 3 — communiqué France Assureurs du 30 juillet, ligne « prestations » surlignée. Puis HISTOGRAMME des six mois (le seul visuel fabriqué de la vidéo). Pastille : 12,6 Md€ EN JUIN. ⚠️ « Sortis des contrats », jamais « retirés » : ce sont les prestations versées — rachats, capitaux décès, termes, arrérages."},
+    {t:"44 – 58 s", d:["Alors, les huit ans ? C’est une date fiscale, pas une serrure. Rien ne se ferme à la souscription, et rien ne s’ouvre au huitième anniversaire — sauf un avantage sur vos gains. Demain, on fait le calcul, au centime."],
+     v:"Retour plan serré. ⏸ Temps d’arrêt d’une demi-seconde après « pas une serrure ». Pastille : UNE DATE, PAS UNE SERRURE. ⚠️ Ne PAS faire le calcul du retrait ici — c’est le mardi. Cette vidéo n’a le droit de dire qu’une chose sur les huit ans."},
+    {t:"58 – 77 s", d:["Deux vraies limites, et on les dit. En unités de compte, on vend au cours du jour : le montant n’est pas garanti. Et le Haut Conseil de stabilité financière peut suspendre les rachats en cas de crise grave, six mois au maximum. Jamais activé depuis 2016.","Abonne-toi."],
+     v:"INCRUST 4 — article L631-2-1 du Code monétaire et financier, « six mois consécutifs » surligné. Puis regard caméra. Carton de fin + disclaimer. ⚠️ Les deux limites ne sont pas une précaution, elles SONT l’argument : la concession se referme sur nous avec « jamais utilisé »."}
+  ]
+},
+{
+  id:"sam-iran", jour:"Samedi 12/09", format:"Géopolitique",
+  titre:"Iran : le détroit d’Ormuz",
+  meta:"381 mots · 2 min 11 dites · 1 min 59 à l’écran · v3 après audit",
+  duree:131,
+  hooks:[
+    {t:"Le gazole a pris plus de cinquante centimes au litre depuis février. La cause n’est pas à Bercy.", n:"le meilleur — il part du portefeuille, pas de la géopolitique"},
+    {t:"Chaque jour où le baril est à 90 dollars plutôt qu’à 72, la France paie vingt-deux millions d’euros de plus.", n:"le plus fort en chiffre brut — à tester"},
+    {t:"Cent trente navires par jour traversaient ce détroit. Aujourd’hui, une douzaine."}
+  ],
+  blocs:[
+    {t:"0 – 10 s", d:["Le gazole a pris plus de cinquante centimes au litre depuis février. La cause n’est pas à Bercy. Elle est dans un détroit large de trente-neuf kilomètres, à cinq mille kilomètres d’ici."],
+     v:"Plan serré, regard caméra, débit posé. Puis dézoom carte : station-service, France, Golfe, le détroit. Pastille : PLUS DE 50 CENTIMES AU LITRE"},
+    {t:"10 – 23 s", d:["Le détroit d’Ormuz — tenu par l’Iran. Quatre-vingt-treize millions d’habitants, presque trois fois la France métropolitaine en superficie.","Une république islamique dirigée non par son président, mais par un Guide suprême : depuis mars, Mojtaba Khamenei. Car son défunt père, Ali Khamenei, a été tué le 28 février par les frappes américano-israéliennes."],
+     v:"Carte d’identité animée, 4 lignes datées. Puis schéma de pouvoir à deux étages, le Guide suprême AU-DESSUS du président. Pastilles : PRESQUE ×3 LA FRANCE · GUIDE SUPRÊME"},
+    {t:"23 – 32 s", d:["Sur le papier, l’Iran est riche : troisième réserve de pétrole au monde, deuxième réserve de gaz. Dans les faits : 84 % d’inflation, et plus de deux millions de rials pour un dollar."],
+     v:"Split-screen. À gauche deux podiums (pétrole 3e, gaz 2e), fond crème. À droite la courbe du rial qui plonge, fond anthracite. Le contraste EST l’argument. Pastilles : 3e RÉSERVE MONDIALE · 84 % D’INFLATION"},
+    {t:"32 – 74 s   ◆ LE CŒUR", d:[
+      "Parce que tout sort par là. Un cinquième du pétrole consommé sur Terre passait dans deux chenaux de trois kilomètres sept.",
+      "Et pendant quarante ans, l’Iran n’a jamais eu besoin de le fermer. Menacer suffisait. Chaque menace faisait monter le baril et le prix de l’assurance des navires. Sa vraie rente, c’était la peur.",
+      "Mais il ne pouvait pas aller au bout : ses propres exportations passent par là, et près de neuf sur dix partaient en Chine, son dernier client. Fermer, c’était se couper le bras.",
+      "Le 28 février, les Américains et les Israéliens tuent le Guide suprême. Un régime qui joue sa survie ne compte plus ses barils. Le 2 mars, l’Iran ferme. Six mois plus tard, c’est toujours fermé : cent trente navires par jour avant la guerre, une douzaine aujourd’hui."],
+     v:"Zoom carte : le détroit à l’échelle (39 km) PUIS les deux rails (3,7 km). ⏸ TEMPS D’ARRÊT D’UNE DEMI-SECONDE après « le fermer » — pivot de la vidéo, non négociable. Schéma de la balance menace / fermeture. Carton 2 MARS 2026. Compteur 130 → 12."},
+    {t:"74 – 107 s", d:[
+      "Résultat : le baril part de 72 dollars et frôle les 120 à la mi-mars. Assurer un pétrolier : quarante fois plus cher.",
+      "Et chez toi ? Chaque jour où le baril est à 90 plutôt qu’à 72, la France paie vingt-deux millions d’euros de plus. Depuis février : dix milliards de dollars.",
+      "Le gazole a battu son record absolu en avril : 2,39 € le litre. Mais soyons honnête : quarante-quatre pour cent de ce prix, c’est de la taxe. Ce qui a vraiment flambé, c’est la marge de raffinage : quadruplée.",
+      "Et le gaz a pris 27 % : trois cent cinquante euros de plus par an si tu te chauffes au gaz."],
+     v:"Courbe Brent datée. Compteur 22 MILLIONS D’EUROS PAR JOUR puis 10 MILLIARDS DEPUIS FÉVRIER. Le litre découpé en trois blocs, la marge gonfle ×4. Incrust facture de gaz. Pastille : PLUS 350 € PAR AN"},
+    {t:"107 – 119 s", d:["Et ce n’est pas fini. Dimanche, les Américains ont frappé une île iranienne dans le détroit. L’Iran a riposté sur des bases en Jordanie. Lundi, le baril a repris 5 %.","Un détroit, et c’est ton caddie qui paie. Abonne-toi."],
+     v:"Frise éclair sur trois dates : DIM. 30 AOÛT / NUIT DU 30 AU 31 / LUN. 1er SEPT. Puis retour plan serré. Boucle : la carte du détroit du hook. Carton de fin + disclaimer."}
+  ]
+},
+{
+  id:"mar-cac", jour:"Mardi 08/09", format:"Cours 60",
+  titre:"Le CAC 40 n’est pas ce que vous croyez",
+  meta:"247 mots · 85 s dites · ~77 s à l’écran",
+  duree:85,
+  hooks:[
+    {t:"Le CAC 40 n’est pas ce que tu crois. La Cotation Assistée en Continu, c’est les quarante plus grandes entreprises françaises… mais ce n’est pas totalement vrai.", n:"le meilleur — on ouvre une nuance, on ne corrige personne"},
+    {t:"Il y a deux mots de trop dans « les quarante plus grosses entreprises françaises ». Et ce ne sont pas ceux que vous croyez."},
+    {t:"Six des quarante entreprises du CAC 40 n’ont pas leur siège social en France."}
+  ],
+  blocs:[
+    {t:"0 – 8 s", d:["Le CAC 40 n’est pas ce que tu crois. La Cotation Assistée en Continu, c’est les quarante plus grandes entreprises françaises… mais ce n’est pas totalement vrai."], v:"Plan serré, regard caméra. Débit posé. Pastille : PAS TOTALEMENT VRAI"},
+    {t:"8 – 18 s", d:["Prenez déjà le mot « françaises ». Six des quarante ont leur siège social à l’étranger. L’une d’elles est même l’entreprise qui gère la Bourse de Paris."], v:"Incrust 1 — les six lignes avec le pays du siège. Pastille : 6 SUR 40"},
+    {t:"18 – 26 s", d:["Et « les plus grosses » ? Euronext, l’entreprise qui fabrique l’indice, ne regarde pas la taille. Elle regarde deux choses."], v:"Retour plan serré. ⏸ Temps d’arrêt d’une demi-seconde après « deux choses »."},
+    {t:"26 – 37 s", d:["La première : le volume. Combien d’actions se sont échangées sur les douze derniers mois. Est-ce que le titre s’achète et se vend beaucoup, oui ou non."], v:"Incrust 2 — règlement Euronext, critère de volume surligné. Pastille : 1. LE VOLUME"},
+    {t:"37 – 52 s", d:["La deuxième : le flottant. Le flottant, ce sont les actions réellement disponibles à l’achat. Si une famille ou l’État détient la majorité du capital et ne la vend jamais, ces actions-là ne comptent pas."], v:"Incrust 2 bis, critère flottant surligné. Puis schéma capital bloqué / disponible. Pastille : 2. LE FLOTTANT"},
+    {t:"52 – 66 s", d:["Et l’indice bouge : il est révisé quatre fois par an. Pour y entrer, il faut qu’environ une action sur trois change de mains dans l’année. Pour y rester, une sur dix suffit. On entre difficilement, on sort lentement."], v:"Schéma deux marches : ENTRER 1 sur 3 / RESTER 1 sur 10. Pastille : 3 FOIS PLUS DUR D’ENTRER"},
+    {t:"66 – 80 s", d:["Un exemple. Dassault Aviation, le constructeur du Rafale, vaut 22 milliards d’euros en Bourse. Mais deux actionnaires en détiennent plus des trois quarts. Il ne reste que 5 milliards qui s’échangent vraiment."], v:"Incrust 3 — Boursorama Dassault (22 428 M€, date visible). Puis le schéma du flottant appliqué. Pastilles : 22 MILLIARDS · 5 SEULEMENT"},
+    {t:"80 – 90 s", d:["Résultat : elle a été candidate à l’entrée en juin. Recalée. Alors que Renault, qui pèse presque trois fois moins qu’elle, est dans l’indice."], v:"Incrust 4 — Boursorama Renault 8 703 M€, en split avec Dassault. Pastille : 3 FOIS PLUS PETITE, ET DEDANS"},
+    {t:"90 – 100 s", d:["Voilà ce que mesure vraiment le CAC 40. Pas la taille des entreprises françaises : la quantité d’actions qui s’échangent à Paris.","Donc la prochaine fois que quelqu’un te dit que le CAC 40, ce sont les quarante plus grandes entreprises françaises… tu sauras que ce n’est que partiellement vrai. Alors pour plus d’infos comme ça, abonne-toi."], v:"Regard caméra, débit ralenti sur la dernière phrase. Carton de fin + disclaimer."}
+  ]
+},
+{
+  id:"mer-blk", jour:"Mercredi 09/09", format:"Cours 40",
+  titre:"BlackRock",
+  meta:"545 mots · 3 min dites · ~2 min 45 à l’écran · tournée et montée",
+  duree:180,
+  hooks:[
+    {t:"BlackRock gère 15 000 milliards de dollars. Sur 100 euros gérés, elle en garde 4 centimes.", n:"le chiffre fait tout le travail"},
+    {t:"On vous dit que BlackRock possède le monde. Alors ouvrons ses comptes."},
+    {t:"Le chiffre que tout le monde répète sur BlackRock date de 2020. Et l’entreprise a arrêté de le publier."}
+  ],
+  blocs:[
+    {t:"0 – 8 s", d:["BlackRock. Le plus gros gestionnaire d’argent du monde, celui qui « possède toutes les entreprises ». Mais que font-ils vraiment ? Et c’est ça qui est intéressant."], v:"Plan serré. Montage rapide de titres de presse. Pastille : À MOITIÉ VRAI"},
+    {t:"8 – 35 s", d:["D’abord, c’est quoi un gestionnaire d’actifs ? C’est simple : des clients lui confient leur argent, et il le place pour eux — on vous fera une vidéo entière là-dessus.","BlackRock naît en 1988 à New York : huit associés autour de Larry Fink, des spécialistes des obligations obsédés par une chose — mesurer le risque.","Le vrai tournant, c’est 2008 : en pleine crise financière, c’est elle que la banque centrale américaine appelle pour trier les actifs toxiques des banques. L’année d’après, elle rachète iShares, le géant des ETF — et devient le numéro un mondial."], v:"Frise 1988 · 1999 · 2008 · 2009 · aujourd’hui. Pastille : 1988"},
+    {t:"35 – 50 s", d:["Les faits d’abord. Au 30 juin 2026, BlackRock gère 15 345 milliards de dollars. Plus que le produit intérieur brut de n’importe quel pays, sauf les États-Unis et la Chine.","Et beaucoup d’entre vous sont clients sans même le savoir, avec sa filiale iShares, numéro un mondial des ETF."], v:"Incrust — communiqué T2 2026, ligne des encours surlignée. Pastille : 15 345 MILLIARDS DE DOLLARS"},
+    {t:"50 – 70 s", d:["Maintenant, le mot qui change tout : gérer. Quand des millions d’épargnants achètent un ETF, BlackRock achète les actions pour eux. Elle apparaît au capital des grandes entreprises, mais pour le compte de ses clients. Les profits vont aux porteurs de parts. Pas à elle."], v:"Schéma épargnants → BlackRock → actions, flèche des dividendes qui repart. Pastille : POUR LE COMPTE DE"},
+    {t:"70 – 90 s", d:["Et ça se voit dans ses comptes. En 2025 : 24 milliards de dollars de chiffre d’affaires, 5,5 milliards de bénéfice net, sur 14 000 milliards d’actifs sous gestion."], v:"Incrust — rapport annuel 2025, les deux lignes surlignées."},
+    {t:"90 – 115 s", d:["Traduction : BlackRock se rémunère sur les frais de gestion, pas sur les profits des entreprises. Elle touche en moyenne dix-neuf centimes sur 100 dollars qu’elle gère. Et une fois ses salaires et ses coûts payés, il lui reste quatre centimes de bénéfice.","Le propriétaire du monde qui gagne quatre centimes."], v:"Visuel : la pièce de 100 $ dont on découpe 19 centimes, puis 4. Pastilles : 19 CENTIMES · 4 DE BÉNÉFICE"},
+    {t:"115 – 130 s", d:["Alors où est le vrai sujet ? Il est dans le droit de vote. Ce que BlackRock ne touche pas en profits, elle l’exerce en assemblée générale."], v:"Retour plan serré. Transition marquée, changement de rythme."},
+    {t:"130 – 150 s", d:["Une étude de Harvard le chiffre : les trois géants — BlackRock, Vanguard, State Street — détiennent 21,9 % du capital des cinq cents plus grandes entreprises américaines, mais pèsent 27,5 % des voix."], v:"Incrust Bebchuk & Hirst. Deux barres : 21,9 % capital / 27,5 % voix. Pastille : 27,5 % DES VOIX"},
+    {t:"150 – 170 s", d:["Pourquoi cet écart ? Parce qu’eux votent toutes leurs actions. Et que les autres actionnaires, souvent, ne votent pas. Le pouvoir ne vient pas seulement de ce qu’ils ont : il vient de ce que les autres ne font pas."], v:"Plan serré, débit ralenti. Pastille : LES AUTRES NE VOTENT PAS"},
+    {t:"170 – 190 s", d:["Et ce pouvoir, ils en font quoi ? Les chiffres ont beaucoup bougé. Le soutien de BlackRock aux résolutions environnementales et sociales est passé de plus de 40 % en 2021 à moins de 2 % en 2025. Sept résolutions soutenues sur 358."], v:"Courbe animée 2021 → 2025. Pastille : MOINS DE 2 %"},
+    {t:"190 – 215 s", d:["Verdict. BlackRock ne possède pas le monde : elle le gère, pour dix-neuf centimes sur cent dollars. Et prend les décisions pour lui. Et c’est ça le vrai sujet, contrairement à ce qu’on te raconte.","Donc la prochaine fois qu’on te dit que BlackRock possède le monde, tu sauras pourquoi ce n’est pas complètement vrai. Alors pour plus d’infos comme ça, abonne-toi."], v:"Carton VERDICT. Puis regard caméra. Carton de fin + disclaimer + « sources en description »."}
+  ]
+},
+{
+  id:"jeu-fonds", jour:"Jeudi 10/09", format:"Cours Produits",
+  titre:"Le fonds euros et sa garantie",
+  meta:"167 mots · 58 s dites · ~52 s à l’écran · tournée et montée",
+  duree:58,
+  hooks:[
+    {t:"Votre fonds euros est garanti. Garanti par qui, et jusqu’à combien ?", n:"le meilleur — il ouvre les deux questions d’un coup"},
+    {t:"Il y a une réserve cachée dans votre fonds euros. Et la loi oblige l’assureur à vous la rendre."},
+    {t:"Votre livret bancaire est garanti 100 000 euros. Votre assurance-vie, 70 000."}
+  ],
+  blocs:[
+    {t:"0 – 8 s", d:["Le fonds euros n’est pas ce que tu crois. C’est l’argent « sans risque » de l’assurance-vie. Le capital est garanti, c’est vrai… mais pas totalement. Déjà : garanti par qui ?"], v:"Plan serré, regard caméra. Pastille : GARANTI PAR QUI ?"},
+    {t:"8 – 22 s", d:["Par l’assureur. Il place l’argent majoritairement en obligations — vous prêtez à des États et à des grandes entreprises — et chaque année, les intérêts crédités vous sont définitivement acquis."], v:"Schéma versement → obligations → intérêts cliquetés, avec un cliquet qui ne tourne que dans un sens. Pastille : EFFET CLIQUET"},
+    {t:"22 – 38 s", d:["Et il lisse. Les bonnes années, il met de côté dans une réserve. Ce que personne ne dit, c’est qu’il n’a pas le droit de la garder : la loi lui impose de vous la reverser dans les huit exercices."], v:"Incrust — article A132-16 du Code des assurances, « au cours des huit exercices » surligné. Pastille : HUIT EXERCICES"},
+    {t:"38 – 42 s", d:["Et si l’assureur fait faillite ?"], v:"Retour plan serré. ⏸ Question à la caméra, silence d’une demi-seconde."},
+    {t:"42 – 56 s", d:["Là, la garantie s’arrête à 70 000 euros. Par personne, et par compagnie. Votre compte en banque, lui, est garanti 100 000. Et avoir trois contrats chez le même assureur ne triple rien du tout."], v:"Incrust FGAP 70 000 € en split avec les 100 000 € bancaires. Pastilles : 70 000 € · 100 000 €"},
+    {t:"56 – 65 s", d:["Donc « sans risque », ça veut dire sans variation. Ce n’est pas la même chose. 2,63 % servi en 2025, et 0,63 % de frais prélevés tous les ans — y compris les mauvaises.","Donc la prochaine fois qu’on te dit que le fonds euros est sans risque, tu sauras que c’est partiellement vrai : sans variation, oui — sans limite, non. Alors pour plus d’infos comme ça, abonne-toi."], v:"Regard caméra. Pastilles : 2,63 % · 0,63 % DE FRAIS. Carton de fin + disclaimer."}
+  ]
+},
+{
+  id:"ven-vf", jour:"Vendredi 11/09", format:"Vrai ou Faux",
+  titre:"Miroir de la semaine",
+  meta:"151 mots · 52 s dites · ~47 s à l’écran · à tourner en dernier",
+  duree:52,
+  hooks:[
+    {t:"Quatre affirmations. Trois sont fausses. On vous laisse deviner laquelle tient."},
+    {t:"Quatre questions sur ce qu’on a expliqué cette semaine. Vous suivez ?"}
+  ],
+  blocs:[
+    {t:"0 – 5 s", d:["Quatre phrases que tu entends partout sur l’argent. Trois sont fausses. On vérifie ?"], v:"Plan serré. Carton : VRAI OU FAUX"},
+    {t:"5 – 17 s", d:["« Le CAC 40, ce sont les quarante plus grosses entreprises françaises. » Faux, et deux fois. Ni les plus grosses — c’est le flottant et le volume qui comptent. Ni toutes françaises : six sièges à l’étranger."], v:"Carton question 1, battement d’une seconde, tampon FAUX. Rappel 2 s de mardi."},
+    {t:"17 – 29 s", d:["« BlackRock possède toutes les entreprises. » Nuance. Elle en gère 15 000 milliards pour ses clients, et en garde quatre centimes pour cent euros. Ce qu’elle concentre, c’est le droit de vote."], v:"Carton question 2, battement, tampon NUANCE. Rappel 2 s de mercredi."},
+    {t:"29 – 41 s", d:["« Le fonds euros, c’est sans risque. » Vrai pour le capital. Mais la garantie s’arrête à 70 000 euros par compagnie, et les frais tombent toutes les années."], v:"Carton question 3, battement, tampon VRAI MAIS. Rappel 2 s de jeudi."},
+    {t:"41 – 53 s", d:["« La flat tax, c’est 30 %. » Plus depuis janvier. 31,4 % sur un PEA ou un compte-titres. 30 % seulement sur l’assurance-vie. Presque personne ne l’a intégré."], v:"Carton question 4, battement, tampon FAUX DEPUIS 2026. Pastille : 31,4 %"},
+    {t:"53 – 58 s", d:["Quatre sur quatre ? Dis ton score en commentaire. Et pour plus d’infos comme ça… tu connais la suite. Abonne-toi."], v:"Regard caméra. Carton de fin + disclaimer."}
+  ]
+},
+{
+  id:"dim-argent", jour:"Dimanche 13/09", format:"Ton argent",
+  titre:"Ce qui change à la rentrée",
+  meta:"168 mots · 58 s dites · ~53 s à l’écran · à tourner à J-0/J-1",
+  duree:58,
+  hooks:[
+    {t:"Trois choses ont changé pour ton argent. La deuxième arrive sur ta facture."},
+    {t:"Votre fiche de paie de septembre n’est pas celle d’août. Et personne ne vous a prévenu."}
+  ],
+  blocs:[
+    {t:"0 – 5 s", d:["Trois choses ont changé pour ton argent. La deuxième arrive sur ta facture."], v:"Plan serré. Carton : CE QUI CHANGE"},
+    {t:"5 – 20 s", d:["Un. Le Livret A est passé de 1,50 à 1,70 % le 1er août. Sur un livret plein, ça fait environ 46 euros de plus dans l’année. Le LEP, lui, reste à 2,50 %. Prochaine révision : le 1er février."], v:"Incrust — communiqué Banque de France ou page Bercy. Pastille : 1,70 %"},
+    {t:"20 – 37 s", d:["Deux. Le gaz augmente de 5,6 % au 1er septembre : le prix repère passe à 172 euros du mégawattheure. Attention au chiffre que vous verrez ailleurs — les 7,3 % de certains titres, c’est la hausse du kilowattheure de chauffage, pas de votre facture."], v:"Incrust — prix repère CRE, date du 12 août visible. Pastilles : PLUS 5,6 % · PAS 7,3 %"},
+    {t:"37 – 50 s", d:["Trois. Votre taux de prélèvement à la source a changé le 1er septembre. Le nouveau taux vient de votre déclaration du printemps, et il s’applique jusqu’en août prochain. Votre fiche de paie de septembre n’est pas celle d’août."], v:"Incrust — impots.gouv.fr, « Gérer mon prélèvement à la source ». Pastille : 1ER SEPTEMBRE"},
+    {t:"50 – 60 s", d:["Et si tu ne retiens qu’une chose : l’inflation est repartie à 2,4 % sur un an, et c’est l’énergie qui la porte. Chaque dimanche, ce qui a bougé pour ton argent. Pour ne rien manquer, abonne-toi."], v:"Regard caméra. Pastille : 2,4 %. Carton de fin + disclaimer. ⚠️ Redondance avec le samedi sur le gaz et l’inflation : dire « comme on l’a vu hier »."}
+  ]
+}
+];
+
+/* ---------------------------------------------------------------- */
+const $ = s => document.querySelector(s);
+const scroll = $("#scroll"), doc = $("#doc"), sel = $("#sel");
+let courant = SCRIPTS[0], taille = 52, vitesse = 100, defile = false, dernier = 0, ecoule = 0;
+// Position de défilement gardée en flottant : à 30 px/s et 60 images/s on
+// avance d'un demi-pixel par image, et scrollTop arrondit — l'incrémenter
+// directement ferait perdre le réglage de vitesse.
+let pos = 0;
+
+SCRIPTS.forEach((s,i)=>{
+  const o = document.createElement("option");
+  o.value = i; o.textContent = `${s.jour} — ${s.titre}`;
+  sel.appendChild(o);
+});
+
+function echap(t){ return t.replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+
+function rendre(s){
+  courant = s; ecoule = 0; arreter();
+  let h = `<div class="bloc tete actif">
+      <span class="kicker">${echap(s.jour)} · ${echap(s.format)}</span>
+      <h1>${echap(s.titre)}</h1>
+      <div class="meta">${echap(s.meta)}</div>
+      <ul class="hooks">${s.hooks.map(k=>
+        `<li>${echap(k.t)}${k.n?`<em>${echap(k.n)}</em>`:""}</li>`).join("")}</ul>
+      <span class="voir">Tourner les trois hooks. Puis une prise « sans le chiffre » de chaque phrase chiffrée.</span>
+    </div>`;
+  h += s.blocs.map(b=>
+    `<div class="bloc"><span class="tc">${echap(b.t)}</span>${
+      b.d.map(p=>`<p>${echap(p)}</p>`).join("")
+    }${b.v?`<span class="voir">${echap(b.v)}</span>`:""}</div>`).join("");
+  doc.innerHTML = h;
+  scroll.scrollTop = 0; pos = 0;
+  majChrono(); majActif(); majProg();
+}
+
+/* --- vitesse calée sur la durée dite du script --- */
+function pxParSec(){
+  const total = scroll.scrollHeight - scroll.clientHeight;
+  if (total <= 0) return 0;
+  return (total / courant.duree) * (vitesse/100);
+}
+
+let raf = null;
+function boucle(ts){
+  if(!defile) return;
+  if(!dernier) dernier = ts;
+  const dt = Math.min(0.25, (ts - dernier)/1000); dernier = ts;
+  ecoule += dt;
+  pos += pxParSec() * dt;
+  const max = scroll.scrollHeight - scroll.clientHeight;
+  if (pos >= max) { pos = max; scroll.scrollTop = pos; majChrono(); majProg(); majActif(); arreter(); return; }
+  scroll.scrollTop = pos;
+  majChrono(); majActif(); majProg();
+  raf = requestAnimationFrame(boucle);
+}
+function lancer(){ defile = true; dernier = 0; pos = scroll.scrollTop; $("#play").classList.add("on");
+  $("#play").setAttribute("aria-pressed","true"); $("#play").textContent = "❚❚ Pause";
+  raf = requestAnimationFrame(boucle); }
+function arreter(){ defile = false; if(raf) cancelAnimationFrame(raf); raf = null;
+  $("#play").classList.remove("on"); $("#play").setAttribute("aria-pressed","false");
+  $("#play").textContent = "▶ Défiler"; }
+function bascule(){ defile ? arreter() : lancer(); }
+
+function mmss(s){ s = Math.max(0,Math.round(s)); return `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`; }
+function majChrono(){ $("#chrono").innerHTML = `<b>${mmss(ecoule)}</b><span> / ${mmss(courant.duree)}</span>`; }
+function majProg(){
+  const total = scroll.scrollHeight - scroll.clientHeight;
+  $("#prog").style.width = (total>0 ? (scroll.scrollTop/total*100) : 0) + "%";
+}
+function majActif(){
+  const y = window.innerHeight * 0.38;
+  let choisi = null;
+  doc.querySelectorAll(".bloc").forEach(b=>{
+    const r = b.getBoundingClientRect();
+    if (r.top <= y + 40 && r.bottom >= y - 40) choisi = b;
+  });
+  doc.querySelectorAll(".bloc").forEach(b=>b.classList.toggle("actif", b === choisi));
+  if(!choisi) doc.querySelector(".bloc")?.classList.add("actif");
+}
+
+/* --- commandes --- */
+function setTaille(v){ taille = Math.min(140, Math.max(20, v));
+  document.documentElement.style.setProperty("--fs", taille+"px");
+  $("#tailleVal").textContent = taille; majProg(); majActif(); }
+function setVitesse(v){
+  vitesse = Math.min(300, Math.max(20, Math.round(v)));
+  const pps = pxParSec();
+  $("#vitVal").textContent = vitesse + " %";
+  $("#vitVal").title = pps ? Math.round(pps) + " px/s" : "";
+}
+
+$("#plus").onclick  = ()=>setTaille(taille+4);
+$("#moins").onclick = ()=>setTaille(taille-4);
+$("#vite").onclick  = ()=>setVitesse(vitesse+10);
+$("#lent").onclick  = ()=>setVitesse(vitesse-10);
+$("#play").onclick  = bascule;
+$("#haut").onclick  = ()=>{ arreter(); ecoule=0; pos=0; scroll.scrollTop=0; majChrono(); majActif(); majProg(); };
+sel.onchange = e => rendre(SCRIPTS[+e.target.value]);
+
+$("#miroir").onclick = e => { const on = document.body.dataset.miroir === "1";
+  document.body.dataset.miroir = on ? "0" : "1"; e.currentTarget.setAttribute("aria-pressed", String(!on)); };
+$("#cues").onclick = e => { const on = document.body.dataset.cues !== "0";
+  document.body.dataset.cues = on ? "0" : "1"; e.currentTarget.setAttribute("aria-pressed", String(!on));
+  majProg(); majActif(); };
+$("#lux").onclick = () => {
+  const clair = document.documentElement.dataset.lux === "clair";
+  if (clair) delete document.documentElement.dataset.lux;
+  else document.documentElement.dataset.lux = "clair";
+};
+
+// quand c’est l’utilisateur qui fait défiler, on resynchronise la position
+scroll.addEventListener("scroll", ()=>{ if(!defile) pos = scroll.scrollTop; majActif(); majProg(); }, {passive:true});
+window.addEventListener("resize", ()=>{ majActif(); majProg(); });
+
+addEventListener("keydown", e=>{
+  if (e.target.tagName === "SELECT") return;
+  const k = e.key;
+  if (k === " ")      { e.preventDefault(); bascule(); }
+  else if (k === "ArrowUp")   { e.preventDefault(); setVitesse(vitesse+10); }
+  else if (k === "ArrowDown") { e.preventDefault(); setVitesse(vitesse-10); }
+  else if (k === "+" || k === "=") { setTaille(taille+4); }
+  else if (k === "-" || k === "_") { setTaille(taille-4); }
+  else if (k === "m" || k === "M") { $("#miroir").click(); }
+  else if (k === "r" || k === "R") { $("#haut").click(); }
+});
+
+document.body.dataset.cues = "1";
+document.body.dataset.miroir = "0";
+setTaille(52); setVitesse(100); rendre(SCRIPTS[0]);
+</script>
+
+
+</body></html>
