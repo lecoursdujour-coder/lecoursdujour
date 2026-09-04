@@ -29,7 +29,7 @@ Pour vérifier en 10 secondes : demander à Claude « **quels skills lecoursdujo
 as-tu ?** ». Si `sous-titres-lcdj` n'est pas dans la liste, la réinstallation
 n'a pas été faite.
 
-Version actuelle du dépôt : **0.10.0**.
+Version actuelle du dépôt : **0.11.0**.
 
 ## Skills incluses
 - Finance : comptabiliser-operations-retraitements, maj-reporting-trimestriel-lr,
@@ -40,7 +40,7 @@ Version actuelle du dépôt : **0.10.0**.
 - Contenu viral court format : viral-short-form, viral-short-form-ideas, viral-hooks,
   viral-captions-and-ctas, viral-tiktok-content, viral-instagram-reels,
   viral-youtube-shorts
-- Sous-titres et fin de vidéo LCDJ : sous-titres-lcdj (moteur v08 pastille jaune + outro logo/Abonne-toi — le standard verrouillé, assets inclus)
+- Sous-titres, visuels, fin de vidéo et MINIATURE : sous-titres-lcdj (moteur v08 pastille jaune + outro logo/Abonne-toi + miniature verticale 1080x1920 obligatoire + bibliothèque de cartes, cartes de pays et récupération de logos officiels — le standard verrouillé, assets inclus)
 - Découverte de skills : find-skills
 
 ## L outil « supprimer les blancs » (hors plugin)
