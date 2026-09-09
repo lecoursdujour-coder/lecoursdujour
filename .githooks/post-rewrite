@@ -1,0 +1,5 @@
+#!/bin/sh
+# Après un pull --rebase : mêmes skills à réinstaller qu'après un merge.
+[ "$1" = "rebase" ] || exit 0
+"$(git rev-parse --show-toplevel)/outils/installer-skills.sh"
+exit 0

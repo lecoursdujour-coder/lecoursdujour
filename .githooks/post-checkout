@@ -1,0 +1,5 @@
+#!/bin/sh
+# Après un changement de BRANCHE seulement ($3 = 1), pas un checkout de fichier.
+[ "$3" = "1" ] || exit 0
+"$(git rev-parse --show-toplevel)/outils/installer-skills.sh"
+exit 0

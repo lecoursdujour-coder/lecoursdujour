@@ -1,0 +1,20 @@
+# Skills installées automatiquement dans ~/.claude/skills à chaque pull.
+# Une par ligne. Les lignes vides et celles qui commencent par # sont ignorées.
+#
+# Ne mettre ici QUE les skills qu'on écrit nous-mêmes et qu'on fait évoluer.
+# Les skills tierces (hyperframes-*, viral-*, embedded-captions, general-video,
+# graphic-overlays, motion-graphics) restent servies par le .plugin : elles ne
+# changent jamais, et les installer ici les ferait apparaître EN DOUBLE.
+
+sous-titres-lcdj
+lcdj-scripts
+watch
+find-skills
+
+# Les quatre skills finance sont déjà servies par le .plugin sur les machines
+# actuelles. Les décommenter ici seulement après avoir retiré le plugin de Claude,
+# sinon elles apparaîtront deux fois :
+# comptabiliser-operations-retraitements
+# maj-reporting-trimestriel-lr
+# reinitialiser-matrice-trimestre
+# repliquer-trame-reporting-trimestriel

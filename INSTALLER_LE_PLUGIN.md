@@ -1,5 +1,55 @@
 # Installer le plugin « lecoursdujour-skills »
 
+## ⚡ La mise à jour automatique — À FAIRE UNE FOIS PAR MACHINE
+
+Depuis le 9 septembre 2026, **un simple pull suffit** pour avoir les skills à jour.
+Plus besoin de rouvrir le `.plugin` dans Claude à chaque version.
+
+**Une seule manipulation, une seule fois :**
+
+1. Récupérer le dépôt (GitHub Desktop : **Pull / Fetch origin**).
+2. Double-cliquer sur **`Activer la mise a jour auto.cmd`**, à la racine du dépôt.
+3. Redémarrer Claude Code.
+
+C'est tout. À partir de là, **chaque pull réinstalle les skills tout seul** : un hook
+git recopie les skills du bundle dans `~/.claude/skills/`, d'où Claude les lit
+directement. Le message `[LCDJ] N skill(s) a jour...` s'affiche après chaque pull.
+
+**Il reste une seule chose à faire à la main : redémarrer Claude Code après un pull.**
+Les fichiers sont posés, mais Claude ne les relit qu'au lancement.
+
+### Ce qui est installé automatiquement, et ce qui ne l'est pas
+
+La liste est dans **`outils/skills-a-installer.txt`** — une skill par ligne, modifiable
+sans toucher au code. On n'y met que les skills **qu'on écrit nous-mêmes** :
+`sous-titres-lcdj`, `lcdj-scripts`, `watch`, `find-skills`.
+
+Les skills tierces (hyperframes-*, viral-*, embedded-captions, general-video,
+graphic-overlays, motion-graphics) restent servies par le `.plugin` : elles ne changent
+jamais, et les installer des deux côtés les ferait **apparaître en double**.
+
+⚠️ Si une skill apparaît deux fois dans Claude — une fois sous son nom seul, une fois
+sous `lecoursdujour-skills:nom` — c'est qu'elle est à la fois dans la liste et dans le
+plugin installé. Retirer la ligne du fichier, ou désinstaller le plugin dans Claude.
+
+### Pourquoi ce changement
+
+Le 9 septembre 2026, cette machine tournait avec un plugin si ancien que
+`sous-titres-lcdj` n'y était même pas — alors que le dépôt était en 0.17.0. Le symptôme
+est silencieux : Claude ne signale pas qu'il lui manque une skill, il fait sans. C'est
+exactement ce que ce mécanisme supprime.
+
+### Si ça ne marche pas
+
+- Vérifier que les hooks sont actifs : `git config core.hooksPath` doit répondre
+  `.githooks`. Sinon, relancer le `.cmd`.
+- Lancer l'installation à la main : `sh outils/installer-skills.sh` depuis le dépôt.
+- Le script ne fait **jamais** échouer un pull : en cas de problème il prévient et
+  s'arrête là.
+
+---
+
+
 Ce dépôt contient le fichier **`lecoursdujour-skills.plugin`** : il regroupe les skills
 personnalisées du projet (finance / matrice LR + montage vidéo HyperFrames).
 Une fois installé, Claude peut les utiliser.
