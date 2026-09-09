@@ -29,7 +29,7 @@ Pour vérifier en 10 secondes : demander à Claude « **quels skills lecoursdujo
 as-tu ?** ». Si `sous-titres-lcdj` n'est pas dans la liste, la réinstallation
 n'a pas été faite.
 
-Version actuelle du dépôt : **0.16.0**.
+Version actuelle du dépôt : **0.17.0**.
 
 ## Skills incluses
 - **Scripts de tournage : lcdj-scripts** — écrire et auditer les scripts. Les sept formats
@@ -66,3 +66,39 @@ c est un script Windows, pas un skill.
 ⚠️ Le `.ps1` doit rester en **UTF-8 avec BOM** : sans lui, PowerShell 5.1 lit les
 accents en ANSI et refuse le script. GitHub le préserve, une copie manuelle pas
 toujours. Détails et dépannage : `outils/supprimer-blancs/LISEZ-MOI.md`.
+
+## ⚠️ Deux pièges pour qui reconstruit le `.plugin`
+
+Le fichier `.plugin` est une **archive TAR**. On l'extrait, on modifie, on repacke —
+et deux choses cassent silencieusement.
+
+**1. Le chemin de sortie du `tar` doit être en POSIX.** Sous Git Bash, un chemin de
+la forme `C:/Users/...` est interprété comme un **hôte distant** :
+
+```
+tar: Cannot connect to C: resolve failed
+```
+
+Le tar échoue, mais la commande enchaînée derrière (`git add`, `git commit`) réussit.
+Résultat : un commit qui annonce une nouvelle version et ne contient que la doc.
+C'est arrivé le 8 septembre 2026 — il a fallu un second commit pour livrer le bundle.
+
+```bash
+cd <build> && tar -cf /c/Users/zianm/.../lecoursdujour-skills.plugin \
+  ".claude-plugin" "README.md" "skills"     # /c/... et jamais C:/...
+```
+
+**Contrôle d'aller-retour obligatoire** avant de committer : réextraire l'archive,
+compter les fichiers, et vérifier la version dans `plugin.json`.
+
+**2. Il y a deux clones du dépôt sur la machine de Zian.**
+
+```
+C:\Users\zianm\Documents\GitHub\lecoursdujour            <- celui de GitHub Desktop
+C:\Users\zianm\OneDrive\Documents\GitHub\lecoursdujour   <- un second, distinct
+```
+
+Ce ne sont pas le même dossier (inodes différents), malgré la redirection OneDrive
+habituelle. Travailler dans l'un pendant que l'autre est en retard, c'est se préparer
+un écrasement. **Toujours `git fetch` et vérifier `git status -sb` dans le clone
+qu'on s'apprête à modifier**, et pousser depuis celui-là seulement.
