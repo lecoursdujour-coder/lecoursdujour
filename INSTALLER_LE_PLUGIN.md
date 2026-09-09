@@ -29,7 +29,7 @@ Pour vérifier en 10 secondes : demander à Claude « **quels skills lecoursdujo
 as-tu ?** ». Si `sous-titres-lcdj` n'est pas dans la liste, la réinstallation
 n'a pas été faite.
 
-Version actuelle du dépôt : **0.15.0**.
+Version actuelle du dépôt : **0.16.0**.
 
 ## Skills incluses
 - **Scripts de tournage : lcdj-scripts** — écrire et auditer les scripts. Les sept formats
@@ -44,8 +44,13 @@ Version actuelle du dépôt : **0.15.0**.
 - Contenu viral court format : viral-short-form, viral-short-form-ideas, viral-hooks,
   viral-captions-and-ctas, viral-tiktok-content, viral-instagram-reels,
   viral-youtube-shorts
-- Sous-titres, visuels, fin de vidéo et MINIATURE : sous-titres-lcdj (moteur v08 pastille jaune + outro logo/Abonne-toi + miniature verticale 1080x1920 obligatoire + bibliothèque de cartes, cartes de pays et récupération de logos officiels — le standard verrouillé, assets inclus)
-- Miniatures : miniatures-lcdj (la chaîne complète de la miniature 1080x1920 — transcrire le montage et jamais le script, repérer un instant sans carte par la mesure, dimensionner l accroche pour rester lisible, contrôler en planche ; moteur et fonte inclus)
+- Sous-titres, visuels, fin de vidéo et MINIATURE : sous-titres-lcdj — le standard de
+  montage verrouillé (moteur v08 pastille jaune, cartes sources, logos officiels et
+  contours de pays, outro logo/Abonne-toi) **et la miniature 1080×1920**, désormais
+  fusionnée dedans. Une seule demande de montage sort la vidéo nommée, sa miniature
+  et le titre ; la miniature se fait aussi seule, pour une vidéo ou toute une semaine.
+  *(Le skill séparé `miniatures-lcdj` a disparu en 0.16.0 : sa méthode est dans
+  `MINIATURES.md`, et le moteur qui existait en double n'a plus qu'un exemplaire.)*
 - Analyse vidéo : watch (regarder une vidéo, en extraire frames et transcription)
 - Découverte de skills : find-skills
 
