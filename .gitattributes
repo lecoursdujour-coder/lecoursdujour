@@ -1,3 +1,13 @@
 outils/supprimer-blancs/*.ps1 -text
 outils/supprimer-blancs/*.cmd -text
 *.plugin -text
+
+# Les hooks git et le script d'installation sont executes par sh : ils DOIVENT
+# rester en LF. Un « #!/bin/sh » suivi d'un \r donne « bad interpreter » et le
+# hook ne s'execute pas -- silencieusement, comme le reste des pieges de ce depot.
+.githooks/* text eol=lf
+outils/installer-skills.sh text eol=lf
+outils/skills-a-installer.txt text eol=lf
+
+# Le .cmd est lu par cmd.exe : CRLF, comme celui de supprimer-blancs.
+*.cmd text eol=crlf
