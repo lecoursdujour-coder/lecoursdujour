@@ -2,6 +2,11 @@
 
 ## ⚡ La mise à jour automatique — À FAIRE UNE FOIS PAR MACHINE
 
+> Version détaillée, écrite pour être suivie par Claude sur une machine neuve :
+> le document « SKILLS — Installation sur une nouvelle machine » à la racine du Drive
+> « Le cours du jour ». Il couvre le clonage, le dépannage et ce qu il ne faut pas faire.
+
+
 Depuis le 9 septembre 2026, **un simple pull suffit** pour avoir les skills à jour.
 Plus besoin de rouvrir le `.plugin` dans Claude à chaque version.
 
