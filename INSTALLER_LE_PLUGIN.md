@@ -29,9 +29,13 @@ Pour vérifier en 10 secondes : demander à Claude « **quels skills lecoursdujo
 as-tu ?** ». Si `sous-titres-lcdj` n'est pas dans la liste, la réinstallation
 n'a pas été faite.
 
-Version actuelle du dépôt : **0.14.1**.
+Version actuelle du dépôt : **0.15.0**.
 
 ## Skills incluses
+- **Scripts de tournage : lcdj-scripts** — écrire et auditer les scripts. Les sept formats
+  et leurs durées, le débit réel mesuré (155-165 mots/min), `minutage.py` pour le minutage
+  bloc par bloc, les règles éditoriales, la méthode d'audit des chiffres et où chercher
+  un chiffre (sources primaires par famille de sujet, sociétés cotées, règle de fraîcheur).
 - Finance : comptabiliser-operations-retraitements, maj-reporting-trimestriel-lr,
   reinitialiser-matrice-trimestre, repliquer-trame-reporting-trimestriel
 - Montage / vidéo : hyperframes-read-first, hyperframes-core, hyperframes-animation,
@@ -42,6 +46,7 @@ Version actuelle du dépôt : **0.14.1**.
   viral-youtube-shorts
 - Sous-titres, visuels, fin de vidéo et MINIATURE : sous-titres-lcdj (moteur v08 pastille jaune + outro logo/Abonne-toi + miniature verticale 1080x1920 obligatoire + bibliothèque de cartes, cartes de pays et récupération de logos officiels — le standard verrouillé, assets inclus)
 - Miniatures : miniatures-lcdj (la chaîne complète de la miniature 1080x1920 — transcrire le montage et jamais le script, repérer un instant sans carte par la mesure, dimensionner l accroche pour rester lisible, contrôler en planche ; moteur et fonte inclus)
+- Analyse vidéo : watch (regarder une vidéo, en extraire frames et transcription)
 - Découverte de skills : find-skills
 
 ## L outil « supprimer les blancs » (hors plugin)
