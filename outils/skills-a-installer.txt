@@ -8,6 +8,7 @@
 
 sous-titres-lcdj
 lcdj-scripts
+carrousel-lcdj
 watch
 find-skills
 
