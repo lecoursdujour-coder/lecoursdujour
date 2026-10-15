@@ -7,6 +7,7 @@ outils/supprimer-blancs/*.cmd -text
 # hook ne s'execute pas -- silencieusement, comme le reste des pieges de ce depot.
 .githooks/* text eol=lf
 outils/installer-skills.sh text eol=lf
+outils/verifier-skills.sh text eol=lf
 outils/skills-a-installer.txt text eol=lf
 
 # Le .cmd est lu par cmd.exe : CRLF, comme celui de supprimer-blancs.
