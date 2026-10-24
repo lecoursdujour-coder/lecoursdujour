@@ -76,7 +76,9 @@ Mesuré sur 30 secondes de 1080×1920 :
 | **GPU AMD** | **3 s** | **0,9941** |
 
 Treize fois plus rapide pour une différence de qualité invisible — et à débit
-légèrement supérieur. Le processeur reste utilisé automatiquement si la source
+légèrement supérieur. Depuis le 4/09/2026 l'outil **essaie vraiment** chaque
+encodeur avant de le prendre (Intel `h264_qsv`, AMD `h264_amf`, NVIDIA `h264_nvenc`) :
+`h264_amf` est listé dans tous les ffmpeg mais ne s'ouvre que sur une carte AMD. Le processeur reste utilisé automatiquement si la source
 est en 10 bits (le GPU ne sait pas encoder du H.264 10 bits), ou avec `-Cpu`.
 
 ## La qualité
@@ -116,4 +118,6 @@ Pour encoder encore plus large : `-Qp 14` (GPU) ou `-Crf 14 -Cpu`.
 | « Unrecognized option filter_script » | Corrige le 2 septembre 2026 : ffmpeg 9 a supprime cette option, l’outil detecte la version et bascule sur `-/filter`. |
 | « Error while parsing expression » ou « Cannot allocate memory » | Corrigé le 2 septembre 2026 : au-delà de 100 coupes ffmpeg refusait l'expression, elle est maintenant assemblée en arbre. |
 | « Aucun blanc » | Monte le seuil (−25) ou baisse la durée mini (0,15). |
+| **Le son se décale par rapport à la bouche**, de plus en plus au fil de la vidéo | Corrigé le 24 octobre 2026 : l'image était coupée à l'image près et le son au paquet de 1024 échantillons près, chaque coupe gardait une image de trop (0,47 s d'avance du son au bout de 2 min 40 sur un .MOV iPhone). Les bornes sont maintenant calées sur la grille des images et le son redécoupé en paquets d'une image : 0 à 33 ms d'écart mesuré, contre 130 à 430 ms avant. Refaire passer les vidéos coupées avant cette date. |
+| « Impossible de convertir la valeur 30/1 » sur un .MOV | Corrigé le 10 septembre 2026 : la durée était lue par sa position dans la sortie de ffprobe, qu'une compilation nocturne de ffmpeg dupliquait. Deux lectures séparées maintenant. |
 | La fenêtre se ferme aussitôt | Le `.ps1` doit rester en **UTF-8 avec BOM** — sinon PowerShell 5.1 lit les accents en ANSI et refuse le script. |

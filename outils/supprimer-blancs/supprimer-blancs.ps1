@@ -131,14 +131,29 @@ Info "  Source : $($src.Name)"
 
 try {
   # ---------- caractéristiques ----------------------------------------
-  $l = @(& ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate `
-           -show_entries format=duration -of default=nw=1:nk=1 -- "$($src.FullName)") |
-       Where-Object { $_ -match '\S' }
-  if ($l.Count -lt 2) { Erreur "Impossible de lire la vidéo (pas de piste vidéo ?)."; Fin 1 }
-  $fps = if ($l[0] -match '^\s*(\d+)\s*/\s*(\d+)\s*$' -and [double]$Matches[2] -ne 0) {
-           [double]$Matches[1] / [double]$Matches[2] } else { [double]($l[0] -replace ',', '.') }
+  # Deux lectures separees : un .MOV iPhone porte plusieurs pistes (video + data),
+  # ffprobe rend alors plusieurs lignes et l'ancien index [1] tombait sur « 30/1 »
+  # au lieu de la duree. On ne se fie plus a la position.
+  $fpsRaw = @(& ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate `
+              -of default=nw=1:nk=1 -- "$($src.FullName)") |
+            Where-Object { $_ -match '\d' } | Select-Object -First 1
+  $durRaw = @(& ffprobe -v error -show_entries format=duration `
+              -of default=nw=1:nk=1 -- "$($src.FullName)") |
+            Where-Object { $_ -match '\d' } | Select-Object -First 1
+
+  if (-not $fpsRaw) { Erreur "Impossible de lire la vidéo (pas de piste vidéo ?)."; Fin 1 }
+
+  $fps = 0.0
+  if ("$fpsRaw" -match '^\s*(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)\s*$') {
+    $den = [double]$Matches[2]
+    if ($den -ne 0) { $fps = [double]$Matches[1] / $den }
+  } elseif ("$fpsRaw".Replace(',', '.') -match '^\s*(\d+(?:\.\d+)?)\s*$') {
+    $fps = [double]$Matches[1]
+  }
   if ($fps -le 0) { $fps = 30 }
-  $duree = [double](($l[1]) -replace ',', '.')
+
+  $duree = 0.0
+  if ("$durRaw".Replace(',', '.') -match '^\s*(\d+(?:\.\d+)?)\s*$') { $duree = [double]$Matches[1] }
   if ($duree -le 0) { Erreur "Durée illisible."; Fin 1 }
 
   if (-not (@(& ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 -- "$($src.FullName)") |
@@ -157,11 +172,28 @@ try {
   $mbSrc  = if ("$vBrSrc" -match '^\d+$') { [double]$vBrSrc / 1e6 } else { 0 }
 
   # ---------- choix de l'encodeur --------------------------------------
-  $gpu = $false
-  if (-not $Cpu -and -not $dixBits) {
-    $gpu = [bool](& ffmpeg -hide_banner -encoders 2>$null | Select-String -SimpleMatch 'h264_amf')
+  # Lister un encodeur ne veut pas dire qu'il marche : h264_amf est present dans
+  # tous les builds ffmpeg, mais s'ouvre seulement sur une carte AMD. On essaie
+  # donc reellement chaque candidat sur une image noire avant de le retenir.
+  function Encodeur-Marche([string]$e) {
+    & ffmpeg -hide_banner -v error -f lavfi -i 'color=black:s=64x64:r=25:d=0.1' `
+             -c:v $e -f null - 2>$null | Out-Null
+    return ($LASTEXITCODE -eq 0)
   }
-  $nomEnc = if ($gpu) { 'GPU AMD (h264_amf)' }
+
+  $gpu = $false; $gpuEnc = $null
+  if (-not $Cpu -and -not $dixBits) {
+    $dispo = @(& ffmpeg -hide_banner -encoders 2>$null)
+    foreach ($cand in 'h264_qsv','h264_amf','h264_nvenc') {
+      if (($dispo | Select-String -SimpleMatch $cand) -and (Encodeur-Marche $cand)) {
+        $gpu = $true; $gpuEnc = $cand; break
+      }
+    }
+  }
+  $nomGpu = @{ 'h264_qsv' = 'GPU Intel (h264_qsv)'
+               'h264_amf' = 'GPU AMD (h264_amf)'
+               'h264_nvenc' = 'GPU NVIDIA (h264_nvenc)' }
+  $nomEnc = if ($gpu) { $nomGpu[$gpuEnc] }
             elseif ($dixBits) { "processeur (libx264) — source 10 bits, le GPU ne sait pas" }
             else { 'processeur (libx264)' }
 
@@ -270,8 +302,17 @@ try {
   # (garde-fou anti-debordement de pile : au 101e il rend ENOMEM et le filtre ne
   # s'initialise pas). On assemble donc la somme en arbre equilibre : la profondeur
   # tombe a log2(n) — teste jusqu'a 3 000 segments.
+  # DÉSYNCHRO SON / IMAGE (corrigé le 24/10/2026) : le son est découpé à l'échantillon près,
+  # l'image à l'image près. Avec des bornes quelconques et between() (bornes INCLUSES),
+  # chaque segment gardait parfois une image de plus que son durée de son : 0,47 s
+  # d'avance du son sur la bouche au bout de 2 min 40 (Orange, IMG_2343). On cale donc
+  # chaque borne sur la grille des images, décalée d'une demi-image (les horodatages
+  # iPhone ne tombent pas pile), avec un intervalle semi-ouvert [a ; b[ : chaque
+  # segment garde une durée d'image égale à sa durée de son, et rien ne dérive.
   $termes = @($garder | ForEach-Object {
-              "between(t,{0},{1})" -f $_[0].ToString('0.####', $inv), $_[1].ToString('0.####', $inv) })
+              $ga = ([Math]::Round($_[0] * $fps) - 0.5) / $fps
+              $gb = ([Math]::Round($_[1] * $fps) - 0.5) / $fps
+              "gte(t,{0})*lt(t,{1})" -f $ga.ToString('0.######', $inv), $gb.ToString('0.######', $inv) })
   function Somme-Arbre([string[]]$t) {
     if ($t.Count -eq 1) { return $t[0] }
     $m = [int]($t.Count / 2)
@@ -287,7 +328,11 @@ try {
     $optFiltreV = '-/filter:v';       $optFiltreA = '-/filter:a'
   }
   [IO.File]::WriteAllText($fv, "select='$expr',setpts=N/FRAME_RATE/TB", [Text.UTF8Encoding]::new($false))
-  [IO.File]::WriteAllText($fa, "aselect='$expr',asetpts=N/SR/TB",       [Text.UTF8Encoding]::new($false))
+  # aselect garde ou jette des PAQUETS de son (1024 échantillons), pas des échantillons :
+  # on redécoupe d'abord le son en paquets d'exactement une image (48000 / 30 = 1600),
+  # alignés sur la même grille que l'image. Image et son gardent alors les mêmes instants.
+  $nA = [int][Math]::Round(48000 / $fps)
+  [IO.File]::WriteAllText($fa, "aresample=48000,asetnsamples=n=${nA}:p=0,aselect='$expr',asetpts=N/SR/TB", [Text.UTF8Encoding]::new($false))
 
   # ---------- encodage --------------------------------------------------
   Info '  [3/3] Encodage...'
@@ -296,13 +341,29 @@ try {
   if ($DebitSource -and $vTargetK -lt 500) { $DebitSource = $false }
 
   if ($gpu) {
-    $enc = if ($DebitSource) {
-             @('-c:v','h264_amf','-quality','quality','-rc','vbr_peak',
-               '-b:v',"${vTargetK}k",'-maxrate',"$([int]($vTargetK*1.4))k")
-           } else {
-             @('-c:v','h264_amf','-quality','quality','-rc','cqp',
-               '-qp_i',"$Qp",'-qp_p',"$Qp",'-qp_b',"$($Qp+2)")
-           }
+    if ($gpuEnc -eq 'h264_amf') {
+      $enc = if ($DebitSource) {
+               @('-c:v','h264_amf','-quality','quality','-rc','vbr_peak',
+                 '-b:v',"${vTargetK}k",'-maxrate',"$([int]($vTargetK*1.4))k")
+             } else {
+               @('-c:v','h264_amf','-quality','quality','-rc','cqp',
+                 '-qp_i',"$Qp",'-qp_p',"$Qp",'-qp_b',"$($Qp+2)")
+             }
+    } elseif ($gpuEnc -eq 'h264_qsv') {
+      $enc = if ($DebitSource) {
+               @('-c:v','h264_qsv','-preset','veryslow',
+                 '-b:v',"${vTargetK}k",'-maxrate',"$([int]($vTargetK*1.4))k")
+             } else {
+               @('-c:v','h264_qsv','-preset','veryslow','-global_quality',"$Qp")
+             }
+    } else {
+      $enc = if ($DebitSource) {
+               @('-c:v','h264_nvenc','-preset','p7',
+                 '-b:v',"${vTargetK}k",'-maxrate',"$([int]($vTargetK*1.4))k")
+             } else {
+               @('-c:v','h264_nvenc','-preset','p7','-rc','constqp','-qp',"$Qp")
+             }
+    }
   } else {
     $enc = @('-c:v','libx264','-preset',$Preset)
     $enc += if ($DebitSource) {
