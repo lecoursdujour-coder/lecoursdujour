@@ -128,6 +128,14 @@ while IFS= read -r NOM; do
     continue
   fi
 
+  # Les dependances npm deja installees (moteur/node_modules : resvg, fontkit) ne sont
+  # pas dans le bundle : sans ce report, chaque pull les effacerait et le premier rendu
+  # tomberait en erreur. Echec silencieux : au pire, un npm install a refaire.
+  if [ -d "$DEST/$NOM/moteur/node_modules" ] && [ -d "$NEUF/moteur" ] && [ ! -e "$NEUF/moteur/node_modules" ]; then
+    cp -r "$DEST/$NOM/moteur/node_modules" "$NEUF/moteur/node_modules" 2>/dev/null \
+      || alerter "dependances npm de '$NOM' non reportees : lancer npm install dans moteur/."
+  fi
+
   VIEUX="$DEST/.$NOM.vieux.$$"
   if [ -d "$DEST/$NOM" ] && ! mv "$DEST/$NOM" "$VIEUX" 2>/dev/null; then
     rm -rf "$NEUF" 2>/dev/null
