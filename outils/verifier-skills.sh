@@ -83,11 +83,11 @@ while IFS= read -r NOM; do
     souci "$NOM : demandee par la liste mais ABSENTE DU BUNDLE."
   elif [ ! -d "$DEST/$NOM" ]; then
     souci "$NOM : PAS INSTALLEE. Lance : sh outils/installer-skills.sh"
-  elif diff -rq "$TMP/skills/$NOM" "$DEST/$NOM" >/dev/null 2>&1; then
+  elif diff -rq -x node_modules "$TMP/skills/$NOM" "$DEST/$NOM" >/dev/null 2>&1; then
     V="$(sed -n 's/^version:[[:space:]]*"*\([^"]*\)"*.*/\1/p' "$DEST/$NOM/SKILL.md" 2>/dev/null | head -1)"
     ok "$NOM${V:+   (v$V)}"
   else
-    N="$(diff -rq "$TMP/skills/$NOM" "$DEST/$NOM" 2>/dev/null | wc -l | tr -d ' ')"
+    N="$(diff -rq -x node_modules "$TMP/skills/$NOM" "$DEST/$NOM" 2>/dev/null | wc -l | tr -d ' ')"
     souci "$NOM : PERIMEE, $N fichier(s) different(s). Lance : sh outils/installer-skills.sh"
   fi
 done < "$VOULUES"
